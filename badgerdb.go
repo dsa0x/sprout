@@ -7,11 +7,9 @@ import (
 )
 
 type BadgerStore struct {
-	db       *badger.DB
-	opts     badger.Options
-	name     string
-	filePath string
-	dblock   sync.Mutex
+	db     *badger.DB
+	opts   badger.Options
+	dblock sync.Mutex
 }
 
 // default temp file path for badgerdb
@@ -40,7 +38,6 @@ func NewBadger(opts ...badger.Options) *BadgerStore {
 }
 
 func (store *BadgerStore) open() error {
-
 	var err error
 	store.db, err = badger.Open(store.opts)
 	if err != nil {
@@ -73,20 +70,6 @@ func (store *BadgerStore) Get(key []byte) ([]byte, error) {
 		return nil, err
 	}
 	return value, nil
-}
-
-func (store *BadgerStore) BatchPut(key []byte, values [][]byte) error {
-	err := store.db.Update(func(tx *badger.Txn) error {
-
-		for _, value := range values {
-			err := tx.Set(key, value)
-			if err != nil {
-				return err
-			}
-		}
-		return nil
-	})
-	return err
 }
 
 func (store *BadgerStore) Put(key, value []byte) error {

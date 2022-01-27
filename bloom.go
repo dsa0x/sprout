@@ -171,6 +171,11 @@ func (bf *BloomFilter) Capacity() int {
 	return bf.capacity
 }
 
+// FilterSize returns the size of the bloom filter
+func (bf *BloomFilter) FilterSize() int {
+	return bf.bit_width
+}
+
 // https://en.wikipedia.org/wiki/Fowler%E2%80%93Noll%E2%80%93Vo_hash_function
 // fnvHash implements the Fowler–Noll–Vo hash function
 func fnvHash(key string) (int64, error) {

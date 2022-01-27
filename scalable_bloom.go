@@ -116,6 +116,15 @@ func (bf *ScalableBloomFilter) Capacity() int {
 	return sum
 }
 
+// FilterSize returns the size of the bloom filter
+func (bf *ScalableBloomFilter) FilterSize() int {
+	sum := 0
+	for _, filter := range bf.filters {
+		sum += filter.bit_width
+	}
+	return sum
+}
+
 // getStore returns the store used by the scalable bloom filter
 func (bf *ScalableBloomFilter) GetStore() Store {
 	return bf.db
