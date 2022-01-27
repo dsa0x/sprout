@@ -7,15 +7,12 @@ import (
 )
 
 func DBSetupTest(t *testing.T) (Store, func()) {
-	boltdb := NewBolt()
 	tempfile := fmt.Sprintf("%s/test.db", t.TempDir())
-	err := boltdb.Open(tempfile, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
-	return boltdb, func() {
+	db := NewBolt(tempfile, 0600)
+
+	return db, func() {
 		os.Remove(tempfile)
-		boltdb.Close()
+		db.Close()
 	}
 }
 

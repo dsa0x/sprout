@@ -2,36 +2,24 @@ package main
 
 import (
 	"fmt"
+	"time"
 
 	bloom "github.com/dsa0x/bloomdb"
 )
 
 func main() {
 
-	boltstore := bloom.NewBolt()
-	err := boltstore.Open("/tmp/bolt.db", nil)
-	if err != nil {
-		fmt.Printf("Error opening boltdb: %s\n", err)
-		return
-	}
-	blm := bloom.NewScalableBloom(0.1, 100, bloom.GrowthRateSmall, boltstore)
+	db := bloom.NewBolt("/tmp/test.db", 0600)
+	defer db.Close()
+	// db := bloom.NewBadger()
+	// blm := bloom.NewBloom(0.01, 100, db)
+	blm := bloom.NewScalableBloom(0.1, 100, db)
 
-	for i := 0; i < 1000; i++ {
+	start := time.Now()
+	for i := 0; i < 200; i++ {
 		blm.Add(fmt.Sprintf("foo%d", i), []byte("bar"))
-		fmt.Println(blm.Find(fmt.Sprintf("foo%d", i*2)), fmt.Sprintf("foo%d", i))
 	}
-
-	fmt.Println(blm.Capacity())
-
-	// boltdb := NewBolt()
-	// err := boltdb.Open("test.db", nil)
-	// if err != nil {
-	// 	log.Fatal(err)
-	// }
-
-	// blm := NewBloom(0.01, 10000, boltdb)
-	// blm.Add("foo", []byte("bar"))
-	// blm.Add("baz", []byte("qux"))
+	fmt.Println(time.Since(start), blm.Capacity())
 
 	// fmt.Println(blm.Find("foo"))
 	// fmt.Println(blm.Find("baz"))

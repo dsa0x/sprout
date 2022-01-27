@@ -31,13 +31,17 @@ var (
 	GrowthRateLarge GrowthRate = 4
 )
 
-// NewScalableBloom creates a new scalable bloom filter
-func NewScalableBloom(err_rate float64, initial_capacity int, growth_rate GrowthRate, database Store) *ScalableBloomFilter {
+// NewScalableBloom creates a new scalable bloom filter. The growth rate defaults to 2.
+func NewScalableBloom(err_rate float64, initial_capacity int, database Store, growth_rate ...GrowthRate) *ScalableBloomFilter {
 	if err_rate <= 0 || err_rate >= 1 {
 		panic("Error rate must be between 0 and 1")
 	}
 	if initial_capacity < 0 {
 		panic("Initial capacity must be greater than 0")
+	}
+	_growth_rate := GrowthRateSmall
+	if len(growth_rate) > 0 {
+		_growth_rate = growth_rate[0]
 	}
 	// number of hash functions
 	numHashFn := int(math.Ceil(math.Log2(1.0 / err_rate)))
@@ -51,7 +55,7 @@ func NewScalableBloom(err_rate float64, initial_capacity int, growth_rate Growth
 	return &ScalableBloomFilter{
 		err_rate:    err_rate,
 		capacity:    initial_capacity,
-		growth_rate: growth_rate,
+		growth_rate: _growth_rate,
 		ratio:       0.9,
 		m0:          initialFilter.m,
 		filters:     []*BloomFilter{initialFilter},
@@ -60,6 +64,7 @@ func NewScalableBloom(err_rate float64, initial_capacity int, growth_rate Growth
 }
 
 // Add adds a key to the scalable bloom filter
+// Complexity: O(k)
 func (bf *ScalableBloomFilter) Add(key string, val []byte) {
 	if bf.Top().count >= bf.Top().capacity {
 		bf.grow()
@@ -68,6 +73,7 @@ func (bf *ScalableBloomFilter) Add(key string, val []byte) {
 }
 
 // Find checks if the key is in the bloom filter
+// Complexity: O(k*n)
 func (bf *ScalableBloomFilter) Find(key string) bool {
 	for _, filter := range bf.filters {
 		if filter.Find(key) {
@@ -108,4 +114,9 @@ func (bf *ScalableBloomFilter) Capacity() int {
 		sum += filter.capacity
 	}
 	return sum
+}
+
+// getStore returns the store used by the scalable bloom filter
+func (bf *ScalableBloomFilter) GetStore() Store {
+	return bf.db
 }

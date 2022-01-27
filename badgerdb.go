@@ -1,0 +1,108 @@
+package bloom
+
+import (
+	"sync"
+
+	badger "github.com/dgraph-io/badger/v3"
+)
+
+type BadgerStore struct {
+	db       *badger.DB
+	opts     badger.Options
+	name     string
+	filePath string
+	dblock   sync.Mutex
+}
+
+// default temp file path for badgerdb
+var badgerTmpFile = "/tmp/badger.db"
+
+func NewBadger(opts ...badger.Options) *BadgerStore {
+	store := &BadgerStore{
+		dblock: sync.Mutex{},
+	}
+
+	if len(opts) > 0 {
+		store.opts = opts[0]
+	} else {
+		store.opts = badger.DefaultOptions(badgerTmpFile)
+	}
+
+	if store.opts.Dir == "" {
+		store.opts = store.opts.WithDir(badgerTmpFile).WithValueDir(badgerTmpFile)
+	}
+
+	err := store.open()
+	if err != nil {
+		panic(err)
+	}
+	return store
+}
+
+func (store *BadgerStore) open() error {
+
+	var err error
+	store.db, err = badger.Open(store.opts)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (store *BadgerStore) Close() error {
+	return store.db.Close()
+}
+
+func (store *BadgerStore) Get(key []byte) ([]byte, error) {
+	var value []byte
+	err := store.db.View(func(tx *badger.Txn) error {
+		item, err := tx.Get(key)
+		if err == badger.ErrKeyNotFound {
+			return nil
+		} else if err != nil {
+			return err
+		}
+		err = item.Value(func(val []byte) error {
+			value = val
+			return nil
+		})
+		return err
+	})
+
+	if err != nil {
+		return nil, err
+	}
+	return value, nil
+}
+
+func (store *BadgerStore) BatchPut(key []byte, values [][]byte) error {
+	err := store.db.Update(func(tx *badger.Txn) error {
+
+		for _, value := range values {
+			err := tx.Set(key, value)
+			if err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+	return err
+}
+
+func (store *BadgerStore) Put(key, value []byte) error {
+	err := store.db.Update(func(tx *badger.Txn) error {
+		err := tx.Set(key, value)
+		if err != nil {
+			return err
+		}
+		return nil
+	})
+	return err
+}
+
+// IsReady returns true if the store is ready to use.
+func (store *BadgerStore) IsReady() bool {
+	return store.db != nil
+}
+
+var _ Store = (*BadgerStore)(nil)

@@ -166,6 +166,11 @@ func getBucketIndex(hash, width uint64) uint64 {
 	return hash % width
 }
 
+// Size returns the total capacity of the scalable bloom filter
+func (bf *BloomFilter) Capacity() int {
+	return bf.capacity
+}
+
 // https://en.wikipedia.org/wiki/Fowler%E2%80%93Noll%E2%80%93Vo_hash_function
 // fnvHash implements the Fowler–Noll–Vo hash function
 func fnvHash(key string) (int64, error) {

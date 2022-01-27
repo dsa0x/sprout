@@ -6,7 +6,7 @@ import (
 )
 
 func TestScalableBloom(t *testing.T) {
-	bf := NewScalableBloom(0.01, 1000, GrowthRateSmall, nil)
+	bf := NewScalableBloom(0.01, 1000, nil)
 
 	t.Run("success", func(t *testing.T) {
 		key, val := "foo", []byte("var")
@@ -17,7 +17,7 @@ func TestScalableBloom(t *testing.T) {
 func TestScalableBloomFilter_AddToDB(t *testing.T) {
 	store, cleanupFunc := DBSetupTest(t)
 	defer cleanupFunc()
-	bf := NewScalableBloom(0.01, 1000, GrowthRateSmall, store)
+	bf := NewScalableBloom(0.01, 1000, store)
 
 	t.Run("success", func(t *testing.T) {
 		key, val := "foo", []byte("var")
@@ -40,7 +40,7 @@ func TestScalableBloomFilter_GrowFilter(t *testing.T) {
 	store, cleanupFunc := DBSetupTest(t)
 	defer cleanupFunc()
 	initialCap := 100
-	bf := NewScalableBloom(0.01, initialCap, GrowthRateSmall, store)
+	bf := NewScalableBloom(0.01, initialCap, store)
 
 	t.Run("should grow filter when capacity is full", func(t *testing.T) {
 		key, val := "foo", []byte("var")

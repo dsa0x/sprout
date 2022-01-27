@@ -1,6 +1,7 @@
 package bloom
 
 import (
+	"os"
 	"sync"
 	"time"
 
@@ -8,40 +9,67 @@ import (
 )
 
 type BoltStore struct {
-	db     *bolt.DB
-	name   string
-	dblock sync.Mutex
-	// dbrwlock sync.RWMutex
+	db       *bolt.DB
+	opts     *bolt.Options
+	filePath string
+	fileMode os.FileMode
+	name     string
+	dblock   sync.Mutex
 }
 
-var defaultBoltStoreOptions = &StoreOptions{
+// defaultBoltOpts are the default boltdb options used by the store.
+var defaultBoltOpts = &StoreOptions{
 	Filemode: 0666,
-	boltOptions: &bolt.Options{
+	boltOpts: &bolt.Options{
 		Timeout: 1 * time.Second,
 	},
 	BucketName: "boltstore",
 }
 
-func NewBolt() *BoltStore {
-	return &BoltStore{
-		dblock: sync.Mutex{},
+// default temp file path for boltdb
+var (
+	boltTmpFile = "/tmp/bolt.db"
+	bucketName  = "boltstore"
+)
+
+func NewBolt(filePath string, filemode os.FileMode, opts ...bolt.Options) *BoltStore {
+	store := &BoltStore{
+		filePath: filePath,
+		fileMode: filemode,
+		dblock:   sync.Mutex{},
+		name:     bucketName,
 	}
+
+	if store.filePath == "" {
+		store.filePath = boltTmpFile
+	}
+
+	if len(opts) > 0 {
+		store.opts = &opts[0]
+	} else {
+		store.opts = bolt.DefaultOptions
+	}
+
+	err := store.open()
+	if err != nil {
+		panic(err)
+	}
+
+	return store
 }
 
-func (store *BoltStore) Open(filename string, config *StoreOptions) error {
-
-	if config == nil {
-		config = defaultBoltStoreOptions
-	}
-
-	store.name = config.BucketName
-
+func (store *BoltStore) open() error {
 	var err error
-	store.db, err = bolt.Open(filename, config.Filemode, config.boltOptions)
+	store.db, err = bolt.Open(store.filePath, store.fileMode, store.opts)
 	if err != nil {
 		return err
 	}
-	return nil
+
+	err = store.db.Update(func(tx *bolt.Tx) error {
+		_, err := tx.CreateBucketIfNotExists([]byte(store.name))
+		return err
+	})
+	return err
 }
 
 func (store *BoltStore) Close() error {
@@ -61,21 +89,22 @@ func (store *BoltStore) Get(key []byte) ([]byte, error) {
 	return value, nil
 }
 
-func (store *BoltStore) Put(key, value []byte) ([]byte, error) {
+func (store *BoltStore) Put(key []byte, value []byte) error {
 	err := store.db.Update(func(tx *bolt.Tx) error {
-		b, err := tx.CreateBucket([]byte(store.name))
+		b := tx.Bucket([]byte(store.name))
+		err := b.Put(key, value)
 		if err != nil {
 			return err
 		}
-		err = b.Put(key, value)
-		return err
+
+		return nil
 	})
-	if err != nil {
-		return nil, err
-	}
-	return value, nil
+	return err
 }
 
+// IsReady returns true if the store is ready to use.
 func (store *BoltStore) IsReady() bool {
 	return store.db != nil
 }
+
+var _ Store = (*BoltStore)(nil)
