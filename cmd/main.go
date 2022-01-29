@@ -3,16 +3,16 @@ package main
 import (
 	"fmt"
 
-	bloom "github.com/dsa0x/bloomdb"
+	gobloomgo "github.com/dsa0x/gobloomgo"
 )
 
 func main() {
 
-	db := bloom.NewBolt("/tmp/test.db", 0600)
-	// db := bloom.NewBadger()
+	db := gobloomgo.NewBolt("/tmp/test.db", 0600)
+	// db := gobloomgo.NewBadger()
 	defer db.Close()
-	// blm := bloom.NewBloom(0.01, 100, db)
-	bf := bloom.NewScalableBloom(0.9, 100, db)
+	// blm := gobloomgo.NewBloom(0.01, 100, db)
+	bf := gobloomgo.NewScalableBloom(0.9, 100, db)
 
 	// start := time.Now()
 	bf.Add("key", []byte("bar"))

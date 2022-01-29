@@ -1,4 +1,4 @@
-module github.com/dsa0x/bloomdb
+module github.com/dsa0x/gobloomgo
 
 go 1.17
 
