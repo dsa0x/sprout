@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/binary"
+	"fmt"
 
 	"github.com/dsa0x/gobloomgo"
 )
@@ -17,17 +18,18 @@ func main() {
 	// opts := badger.DefaultOptions("/tmp/bloom.db")
 	// db := gobloomgo.NewBadger(opts)
 
+	num := 18232
 	// bf := gobloomgo.NewBloom(0.1, 50000, nil)
-	bf := gobloomgo.NewScalableBloom(0.000001, 10, nil)
+	bf := gobloomgo.NewScalableBloom(0.001, num, nil)
 
-	for i := 0; i < 100000; i++ {
+	for i := 0; i < num; i++ {
 		var by [4]byte
 		binary.LittleEndian.PutUint32(by[:], uint32(i))
 		bf.Add(by[:], []byte("bar"))
 	}
 	bf.Add([]byte("foo"), []byte("var"))
 
-	// fmt.Printf("Count: %d, Capacity: %d, ExpCap: %.f\n", bf.Count(), bf.Capacity(), bf.ExpCapacity())
+	fmt.Printf("Count: %d, Capacity: %d,\n", bf.Count(), bf.Capacity())
 	// fmt.Println(bf.Capacity(), bf.ExpCapacity(), bf.Count(), bf.Prob())
 
 }

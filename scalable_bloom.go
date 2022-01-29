@@ -97,10 +97,15 @@ func (sbf *ScalableBloomFilter) Top() *BloomFilter {
 // grow increases the capacity of the bloom filter by adding a new filter
 func (sbf *ScalableBloomFilter) grow() {
 	err_rate := sbf.err_rate * math.Pow(sbf.ratio, float64(len(sbf.filters)))
+	newCapacity := sbf.getNewCap()
+	newFilter := NewBloom(err_rate, newCapacity, sbf.db)
+	sbf.filters = append(sbf.filters, newFilter)
+}
+
+func (sbf *ScalableBloomFilter) getNewCap() int {
 	i := float64(len(sbf.filters)) - 1.0
 	newCapacity := float64(sbf.m0) * float64(math.Pow(float64(sbf.growth_rate), i)) * math.Ln2
-	newFilter := NewBloom(err_rate, int(newCapacity), sbf.db)
-	sbf.filters = append(sbf.filters, newFilter)
+	return int(newCapacity)
 }
 
 // Size returns the total capacity of the scalable bloom filter

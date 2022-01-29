@@ -49,7 +49,7 @@ func NewBloom(err_rate float64, capacity int, database Store) *BloomFilter {
 	if err_rate <= 0 || err_rate >= 1 {
 		panic("Error rate must be between 0 and 1")
 	}
-	if capacity < 0 {
+	if capacity <= 0 {
 		panic("Capacity must be greater than 0")
 	}
 
@@ -62,13 +62,12 @@ func NewBloom(err_rate float64, capacity int, database Store) *BloomFilter {
 	ln22 := math.Pow(math.Ln2, 2)
 
 	// M
-	bit_width := int(math.Ceil((float64(capacity) * math.Abs(math.Log(err_rate))) /
-		ln22))
+	bit_width := int((float64(capacity) * math.Abs(math.Log(err_rate)) / ln22))
+
 	//m
 	bits_per_slice := bit_width / numHashFn
 
 	seeds := make([]int64, numHashFn)
-
 	for i := 0; i < len(seeds); i++ {
 		seeds[i] = int64((i + 1) << 16)
 	}
