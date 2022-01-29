@@ -34,7 +34,7 @@ func NewBadger(opts ...badger.Options) *BadgerStore {
 
 	err := store.open()
 	if err != nil {
-		fmt.Printf("failed to open badger db: %v", err)
+		fmt.Printf("failed to open badgerdb: %v", err)
 		os.Exit(1)
 	}
 	return store

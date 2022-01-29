@@ -1,6 +1,7 @@
 package gobloomgo
 
 import (
+	"fmt"
 	"math"
 )
 
@@ -127,4 +128,14 @@ func (sbf *ScalableBloomFilter) filterSize() int {
 // getStore returns the store used by the scalable bloom filter
 func (sbf *ScalableBloomFilter) getStore() Store {
 	return sbf.db
+}
+func (sbf *ScalableBloomFilter) Count() int {
+	sum, smm := 0, 0
+	for i, filter := range sbf.filters {
+		sum += filter.count
+		smm += filter.capacity
+		// fmt.Println(sum, smm, i)
+		fmt.Sprintln(filter.count, "i=", i)
+	}
+	return sum
 }

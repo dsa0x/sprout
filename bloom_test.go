@@ -1,6 +1,7 @@
 package gobloomgo
 
 import (
+	"encoding/binary"
 	"fmt"
 	"os"
 	"testing"
@@ -46,6 +47,38 @@ func TestBloomFilter_Add(t *testing.T) {
 	t.Run("success", func(t *testing.T) {
 		key, val := []byte("foo"), []byte("var")
 		bf.Add(key, val)
+	})
+
+	t.Run("count should sum up to the number of entries added", func(t *testing.T) {
+		bf := NewBloom(0.01, 110000, nil)
+		count := 100000
+		for i := 0; i < count; i++ {
+			var by [4]byte
+			binary.LittleEndian.PutUint32(by[:], uint32(i))
+			bf.Add(by[:], []byte("bar"))
+		}
+		if bf.Count() != count {
+			t.Errorf("Expected count to be %d, got %d", bf.Count(), count)
+		}
+	})
+
+	t.Run("add should panic when number of entries exceed the capacity", func(t *testing.T) {
+		defer func() {
+			if r := recover(); r == nil {
+				fmt.Println("recovered from panic")
+				return
+			}
+		}()
+
+		count := 1000
+		bf := NewBloom(0.01, count, nil)
+		for i := 0; i < count; i++ {
+			var by [4]byte
+			binary.LittleEndian.PutUint32(by[:], uint32(i))
+			bf.Add(by[:], []byte("bar"))
+		}
+		bf.Add([]byte("test"), []byte("bar"))
+		t.Errorf("Expected function to panic when number of entries exceed the capacity")
 	})
 }
 func TestBloomFilter_AddToDB(t *testing.T) {
@@ -127,4 +160,14 @@ func TestBloomFilter(t *testing.T) {
 			}
 		}
 	})
+}
+
+func assertPanic(t *testing.T, fn func()) {
+	defer func() {
+		if r := recover(); r == nil {
+			fmt.Println("recovered from panic")
+		}
+	}()
+	fn()
+	t.Errorf("The code did not panic")
 }
