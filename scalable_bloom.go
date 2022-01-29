@@ -58,17 +58,17 @@ func NewScalableBloom(err_rate float64, initial_capacity int, database Store, gr
 
 // Add adds a key to the scalable bloom filter
 // Complexity: O(k)
-func (bf *ScalableBloomFilter) Add(key, val []byte) {
-	if bf.Top().count >= bf.Top().capacity {
-		bf.grow()
+func (sbf *ScalableBloomFilter) Add(key, val []byte) {
+	if sbf.Top().count >= sbf.Top().capacity {
+		sbf.grow()
 	}
-	bf.Top().Add(key, val)
+	sbf.Top().Add(key, val)
 }
 
 // Find checks if the key is in the bloom filter
 // Complexity: O(k*n)
-func (bf *ScalableBloomFilter) Find(key []byte) bool {
-	for _, filter := range bf.filters {
+func (sbf *ScalableBloomFilter) Find(key []byte) bool {
+	for _, filter := range sbf.filters {
 		if filter.Find(key) {
 			return true
 		}
@@ -76,8 +76,8 @@ func (bf *ScalableBloomFilter) Find(key []byte) bool {
 	return false
 }
 
-func (bf *ScalableBloomFilter) Get(key []byte) []byte {
-	for _, filter := range bf.filters {
+func (sbf *ScalableBloomFilter) Get(key []byte) []byte {
+	for _, filter := range sbf.filters {
 		if filter.Find(key) {
 			return filter.Get(key)
 		}
@@ -86,39 +86,39 @@ func (bf *ScalableBloomFilter) Get(key []byte) []byte {
 }
 
 // Top returns the top filter in the scalable bloom filter
-func (bf *ScalableBloomFilter) Top() *BloomFilter {
-	return bf.filters[len(bf.filters)-1]
+func (sbf *ScalableBloomFilter) Top() *BloomFilter {
+	return sbf.filters[len(sbf.filters)-1]
 }
 
 // grow increases the capacity of the bloom filter by adding a new filter
-func (bf *ScalableBloomFilter) grow() {
-	err_rate := bf.err_rate * math.Pow(bf.ratio, float64(len(bf.filters)))
+func (sbf *ScalableBloomFilter) grow() {
+	err_rate := sbf.err_rate * math.Pow(sbf.ratio, float64(len(sbf.filters)))
 
 	// newCapacity = m0 * growth_rate^i * ln2
-	newCapacity := bf.m0 * int(math.Pow(float64(bf.growth_rate), float64(len(bf.filters))+1.0)*math.Ln2)
-	newFilter := NewBloom(err_rate, newCapacity, bf.db)
-	bf.filters = append(bf.filters, newFilter)
+	newCapacity := sbf.m0 * int(math.Pow(float64(sbf.growth_rate), float64(len(sbf.filters))+1.0)*math.Ln2)
+	newFilter := NewBloom(err_rate, newCapacity, sbf.db)
+	sbf.filters = append(sbf.filters, newFilter)
 }
 
 // Size returns the total capacity of the scalable bloom filter
-func (bf *ScalableBloomFilter) Capacity() int {
+func (sbf *ScalableBloomFilter) Capacity() int {
 	sum := 0
-	for _, filter := range bf.filters {
+	for _, filter := range sbf.filters {
 		sum += filter.capacity
 	}
 	return sum
 }
 
 // filterSize returns the total filter size
-func (bf *ScalableBloomFilter) filterSize() int {
+func (sbf *ScalableBloomFilter) filterSize() int {
 	sum := 0
-	for _, filter := range bf.filters {
+	for _, filter := range sbf.filters {
 		sum += filter.bit_width
 	}
 	return sum
 }
 
 // getStore returns the store used by the scalable bloom filter
-func (bf *ScalableBloomFilter) getStore() Store {
-	return bf.db
+func (sbf *ScalableBloomFilter) getStore() Store {
+	return sbf.db
 }
