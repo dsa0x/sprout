@@ -14,7 +14,7 @@ var ErrKeyNotFound = fmt.Errorf("Key not found")
 
 type BloomFilter struct {
 
-	// The error rate of the bloom filter (P)
+	// The desired false positive rate. e.g. 0.1 error rate implies 1 in 1000
 	err_rate float64
 
 	// the number of items intended to be added to the bloom filter (n)
@@ -39,6 +39,12 @@ type BloomFilter struct {
 	seeds []int64
 }
 
+// NewBloom creates a new bloom filter.
+// err_rate is the desired false positive rate. e.g. 0.1 error rate implies 1 in 1000
+//
+// capacity is the number of entries intended to be added to the filter
+//
+// database is the persistent store to attach to the filter. can be nil.
 func NewBloom(err_rate float64, capacity int, database Store) *BloomFilter {
 	if err_rate <= 0 || err_rate >= 1 {
 		panic("Error rate must be between 0 and 1")
@@ -53,10 +59,12 @@ func NewBloom(err_rate float64, capacity int, database Store) *BloomFilter {
 	// number of hash functions (k)
 	numHashFn := int(math.Ceil(math.Log2(1.0 / err_rate)))
 
+	//ln22 = ln2^2
+	ln22 := math.Pow(math.Ln2, 2)
+
 	// M
 	bit_width := int(math.Ceil((float64(capacity) * math.Abs(math.Log(err_rate))) /
-		(math.Pow(math.Ln2, 2))))
-
+		ln22))
 	//m
 	bits_per_slice := bit_width / numHashFn
 
@@ -75,6 +83,10 @@ func NewBloom(err_rate float64, capacity int, database Store) *BloomFilter {
 		seeds:     seeds,
 		db:        database,
 	}
+}
+
+func NewBloomFromFile(path string) {
+
 }
 
 // Add adds the key to the bloom filter

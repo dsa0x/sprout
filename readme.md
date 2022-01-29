@@ -27,7 +27,7 @@ sbf := gobloomgo.NewScalableBloom(0.9, 100, nil)
 
 gobloomgo supports boltdb and badgerdb as persistent store. Using them is very simple. gobloomgo exposes methods that initializes the database and then they can be attached to the bloom filter
 
-Using Boltdb
+##### Using Boltdb
 
 ```go
 // initialize boltdb
@@ -43,7 +43,7 @@ defer db.Close()
 bf := gobloomgo.NewBloom(0.01, 100, db)
 ```
 
-Badger db
+##### Badgerdb (v3)
 
 ```go
 // initialize badgerdb

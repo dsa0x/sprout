@@ -7,6 +7,7 @@ import (
 // https://haslab.uminho.pt/cbm/files/dbloom.pdf
 
 type ScalableBloomFilter struct {
+	// The desired false positive rate. e.g. 0.1 error rate implies 1 in 1000
 	err_rate float64
 
 	// the number of items intended to be added to the bloom filter
@@ -31,7 +32,12 @@ var (
 	GrowthRateLarge GrowthRate = 4
 )
 
-// NewScalableBloom creates a new scalable bloom filter. The growth rate defaults to 2.
+// NewScalableBloom creates a new scalable bloom filter.
+// err_rate is the desired false positive rate. e.g. 0.1 error rate implies 1 in 1000
+// initial_capacity is the initial capacity of the bloom filter. When the number
+// of items exceed the initial capacity, a new filter is created.
+//
+// The growth rate defaults to 2.
 func NewScalableBloom(err_rate float64, initial_capacity int, database Store, growth_rate ...GrowthRate) *ScalableBloomFilter {
 	if err_rate <= 0 || err_rate >= 1 {
 		panic("Error rate must be between 0 and 1")

@@ -2,8 +2,9 @@ package main
 
 import (
 	"fmt"
+	"time"
 
-	gobloomgo "github.com/dsa0x/gobloomgo"
+	"github.com/dsa0x/gobloomgo"
 )
 
 func main() {
@@ -17,21 +18,20 @@ func main() {
 	// opts := badger.DefaultOptions("/tmp/bloom.db")
 	// db := gobloomgo.NewBadger(opts)
 
-	// blm := gobloomgo.NewBloom(0.01, 100, db)
-	bf := gobloomgo.NewScalableBloom(0.001, 100, nil)
+	// bf := gobloomgo.NewBloom(0.1, 1000, nil)
+	bf := gobloomgo.NewScalableBloom(0.1, 1000, nil)
 
 	mp := map[bool]int{}
 
-	// start := time.Now()
+	start := time.Now()
 	bf.Add([]byte("key"), []byte("bar"))
-	for i := 0; i < 20000; i++ {
+	for i := 0; i < 100000; i++ {
 		bf.Add([]byte(fmt.Sprintf("foo%d", i)), []byte("bar"))
 	}
-	for i := 0; i < 30000; i++ {
+	for i := 0; i < 200000; i++ {
 		mp[bf.Find([]byte(fmt.Sprintf("foo%d", i)))] += 1
 	}
-	// bf.FilterSize()
 	fmt.Printf("%s %v\n", bf.Get([]byte("key")), mp)
-	fmt.Println(bf.Capacity())
+	fmt.Println(bf.Capacity(), time.Since(start))
 
 }
