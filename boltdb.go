@@ -1,6 +1,7 @@
 package gobloomgo
 
 import (
+	"fmt"
 	"os"
 	"sync"
 
@@ -42,7 +43,8 @@ func NewBolt(filePath string, filemode os.FileMode, opts ...bolt.Options) *BoltS
 
 	err := store.open()
 	if err != nil {
-		panic(err)
+		fmt.Printf("failed to open boltdb: %v", err)
+		os.Exit(1)
 	}
 
 	return store

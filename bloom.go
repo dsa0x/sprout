@@ -29,13 +29,13 @@ type BloomFilter struct {
 	// the number of items added to the bloom filter
 	count int
 
-	// the bit vector
+	// the bit array
 	bit_array []bool
 
 	// m is the number bits per slice(hashFn)
 	m int
 
-	// the length of seeds define the number of hashing functions we use
+	// one seed per hash function
 	seeds []int64
 }
 
@@ -94,13 +94,8 @@ func (bf *BloomFilter) Add(key, val []byte) {
 
 	indices := bf.candidates(string(key))
 
-	if bf.Find(key) {
-		return
-	}
-
 	if bf.count >= bf.capacity {
-		log.Fatalf("BloomFilter has reached full capacity")
-		return
+		log.Panicf("BloomFilter has reached full capacity %d", bf.capacity)
 	}
 
 	for i := 0; i < len(indices); i++ {
@@ -180,9 +175,14 @@ func getBucketIndex(hash, width uint64) uint64 {
 	return hash % width
 }
 
-// Size returns the total capacity of the scalable bloom filter
+// Capacity returns the total capacity of the scalable bloom filter
 func (bf *BloomFilter) Capacity() int {
 	return bf.capacity
+}
+
+// Count returns the number of items added to the bloom filter
+func (bf *BloomFilter) Count() int {
+	return bf.count
 }
 
 // FilterSize returns the size of the bloom filter
