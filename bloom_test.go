@@ -4,11 +4,24 @@ import (
 	"fmt"
 	"os"
 	"testing"
+
+	"github.com/dgraph-io/badger/v3"
 )
 
 func DBSetupTest(t *testing.T) (Store, func()) {
 	tempfile := fmt.Sprintf("%s/test.db", t.TempDir())
 	db := NewBolt(tempfile, 0600)
+
+	return db, func() {
+		os.Remove(tempfile)
+		db.Close()
+	}
+}
+func BadgerDBSetupTest(t *testing.T) (Store, func()) {
+	tempfile := fmt.Sprintf("%s/test.db", t.TempDir())
+	opts := badger.DefaultOptions(tempfile)
+	opts.WithValueLogFileSize(10240)
+	db := NewBadger(opts)
 
 	return db, func() {
 		os.Remove(tempfile)
@@ -37,6 +50,28 @@ func TestBloomFilter_Add(t *testing.T) {
 }
 func TestBloomFilter_AddToDB(t *testing.T) {
 	store, cleanupFunc := DBSetupTest(t)
+	defer cleanupFunc()
+	bf := NewBloom(0.01, 1000, store)
+
+	t.Run("success", func(t *testing.T) {
+		key, val := "foo", []byte("var")
+		bf.Add(key, val)
+
+		if val, err := bf.db.Get([]byte(key)); err != nil || val == nil {
+			t.Errorf("bf.cache[%s] not found; error: %v", key, err)
+		}
+	})
+	t.Run("should not find key that was not added", func(t *testing.T) {
+		key, val := "foo", []byte("var")
+		bf.Add(key, val)
+
+		if val, err := bf.db.Get([]byte("bar")); err != nil || val != nil {
+			t.Errorf("expected value to be nil, got %s; error: %v", val, err)
+		}
+	})
+}
+func TestBloomFilter_AddToBadgerDB(t *testing.T) {
+	store, cleanupFunc := BadgerDBSetupTest(t)
 	defer cleanupFunc()
 	bf := NewBloom(0.01, 1000, store)
 

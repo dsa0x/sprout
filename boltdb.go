@@ -3,7 +3,6 @@ package bloom
 import (
 	"os"
 	"sync"
-	"time"
 
 	bolt "go.etcd.io/bbolt"
 )
@@ -15,15 +14,6 @@ type BoltStore struct {
 	fileMode os.FileMode
 	name     string
 	dblock   sync.Mutex
-}
-
-// defaultBoltOpts are the default boltdb options used by the store.
-var defaultBoltOpts = &StoreOptions{
-	Filemode: 0666,
-	boltOpts: &bolt.Options{
-		Timeout: 1 * time.Second,
-	},
-	BucketName: "boltstore",
 }
 
 // default temp file path for boltdb
@@ -96,7 +86,6 @@ func (store *BoltStore) Put(key []byte, value []byte) error {
 		if err != nil {
 			return err
 		}
-
 		return nil
 	})
 	return err

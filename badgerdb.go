@@ -1,6 +1,8 @@
 package bloom
 
 import (
+	"fmt"
+	"os"
 	"sync"
 
 	badger "github.com/dgraph-io/badger/v3"
@@ -32,7 +34,8 @@ func NewBadger(opts ...badger.Options) *BadgerStore {
 
 	err := store.open()
 	if err != nil {
-		panic(err)
+		fmt.Printf("failed to open badger db: %v", err)
+		os.Exit(1)
 	}
 	return store
 }
