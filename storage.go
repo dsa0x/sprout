@@ -12,7 +12,7 @@ type Store interface {
 	Close() error
 	Get(key []byte) ([]byte, error)
 	Put(key, value []byte) error
-	IsReady() bool
+	isReady() bool
 }
 
 type StoreOptions struct {

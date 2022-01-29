@@ -1,14 +1,11 @@
 package gobloomgo
 
 import (
-	"fmt"
 	"math"
 )
 
-// https://haslab.uminho.pt/cbm/files/dbloom.pdf
-
 type ScalableBloomFilter struct {
-	// The desired false positive rate. e.g. 0.1 error rate implies 1 in 1000
+	// The desired false positive rate
 	err_rate float64
 
 	// the number of items intended to be added to the bloom filter
@@ -27,9 +24,9 @@ type ScalableBloomFilter struct {
 type GrowthRate uint
 
 var (
-	// GrowthRateSmall represents a small expected growth rate
+	// GrowthRateSmall represents a small expected set growth
 	GrowthRateSmall GrowthRate = 2
-	// GrowthRateLarge represents a large expected growth rate
+	// GrowthRateLarge represents a large expected set growth
 	GrowthRateLarge GrowthRate = 4
 )
 
@@ -56,7 +53,7 @@ func NewScalableBloom(err_rate float64, initial_capacity int, database Store, gr
 		err_rate:    err_rate,
 		capacity:    initial_capacity,
 		growth_rate: _growth_rate,
-		ratio:       0.9,
+		ratio:       0.9, // Source: [1]
 		m0:          initialFilter.m,
 		filters:     []*BloomFilter{initialFilter},
 		db:          database,
@@ -100,10 +97,9 @@ func (sbf *ScalableBloomFilter) Top() *BloomFilter {
 // grow increases the capacity of the bloom filter by adding a new filter
 func (sbf *ScalableBloomFilter) grow() {
 	err_rate := sbf.err_rate * math.Pow(sbf.ratio, float64(len(sbf.filters)))
-
-	// newCapacity = m0 * growth_rate^i * ln2
-	newCapacity := sbf.m0 * int(math.Pow(float64(sbf.growth_rate), float64(len(sbf.filters))+1.0)*math.Ln2)
-	newFilter := NewBloom(err_rate, newCapacity, sbf.db)
+	i := float64(len(sbf.filters)) - 1.0
+	newCapacity := float64(sbf.m0) * float64(math.Pow(float64(sbf.growth_rate), i)) * math.Ln2
+	newFilter := NewBloom(err_rate, int(newCapacity), sbf.db)
 	sbf.filters = append(sbf.filters, newFilter)
 }
 
@@ -129,13 +125,35 @@ func (sbf *ScalableBloomFilter) filterSize() int {
 func (sbf *ScalableBloomFilter) getStore() Store {
 	return sbf.db
 }
+
+// Count returns the number of items added to the bloom filter
 func (sbf *ScalableBloomFilter) Count() int {
-	sum, smm := 0, 0
-	for i, filter := range sbf.filters {
+	sum := 0
+	for _, filter := range sbf.filters {
 		sum += filter.count
-		smm += filter.capacity
-		// fmt.Println(sum, smm, i)
-		fmt.Sprintln(filter.count, "i=", i)
 	}
 	return sum
+}
+func (sbf *ScalableBloomFilter) bitWidth() int {
+	sum := 0
+	for _, filter := range sbf.filters {
+		sum += filter.bit_width
+	}
+	return sum
+}
+
+func (sbf *ScalableBloomFilter) prob() float64 {
+	sum := 1.0
+	for i, _ := range sbf.filters {
+		sum *= 1.0 - (sbf.err_rate * math.Pow(sbf.ratio, float64(i)))
+	}
+	return 1.0 - sum
+}
+
+func (sbf *ScalableBloomFilter) expCapacity() float64 {
+	sum := 0
+	for i, _ := range sbf.filters {
+		sum += int(math.Pow(float64(sbf.growth_rate), float64(i)))
+	}
+	return float64(sum*sbf.m0) * math.Ln2
 }

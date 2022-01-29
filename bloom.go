@@ -14,7 +14,7 @@ var ErrKeyNotFound = fmt.Errorf("Key not found")
 
 type BloomFilter struct {
 
-	// The desired false positive rate. e.g. 0.1 error rate implies 1 in 1000
+	// The desired false positive rate
 	err_rate float64
 
 	// the number of items intended to be added to the bloom filter (n)
@@ -53,11 +53,53 @@ func NewBloom(err_rate float64, capacity int, database Store) *BloomFilter {
 		panic("Capacity must be greater than 0")
 	}
 
+	// P = err_rate
+
+	// number of hash functions (k)
+	numHashFn := int(math.Ceil(math.Log2(1.0 / err_rate)))
+
+	//ln22 = ln2^2
+	ln22 := math.Pow(math.Ln2, 2)
+
+	// M
+	bit_width := int(math.Ceil((float64(capacity) * math.Abs(math.Log(err_rate))) /
+		ln22))
+	//m
+	bits_per_slice := bit_width / numHashFn
+
+	seeds := make([]int64, numHashFn)
+
+	for i := 0; i < len(seeds); i++ {
+		seeds[i] = int64((i + 1) << 16)
+	}
+
+	return &BloomFilter{
+		err_rate:  err_rate,
+		capacity:  capacity,
+		bit_width: bit_width,
+		bit_array: make([]bool, bit_width),
+		m:         bits_per_slice,
+		seeds:     seeds,
+		db:        database,
+	}
+}
+
+func NewBloomWithK(err_rate float64, capacity int, database Store, k int) *BloomFilter {
+	if err_rate <= 0 || err_rate >= 1 {
+		panic("Error rate must be between 0 and 1")
+	}
+	if capacity < 0 {
+		panic("Capacity must be greater than 0")
+	}
+
 	// P
 	err_rate /= 100.0
 
 	// number of hash functions (k)
 	numHashFn := int(math.Ceil(math.Log2(1.0 / err_rate)))
+	if k > 0 {
+		numHashFn = int(k)
+	}
 
 	//ln22 = ln2^2
 	ln22 := math.Pow(math.Ln2, 2)
@@ -135,7 +177,7 @@ func (bf *BloomFilter) Get(key []byte) []byte {
 }
 
 func (bf *BloomFilter) hasStore() bool {
-	return bf.db != nil && bf.db.IsReady()
+	return bf.db != nil && bf.db.isReady()
 }
 
 // every checks if each index in the indices array has a value of 1 in the bit array

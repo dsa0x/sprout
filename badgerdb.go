@@ -17,6 +17,7 @@ type BadgerStore struct {
 // default temp file path for badgerdb
 var badgerTmpFile = "/tmp/badger.db"
 
+// NewBadger instantiates a new BadgerStore.
 func NewBadger(opts ...badger.Options) *BadgerStore {
 	store := &BadgerStore{
 		dblock: sync.Mutex{},
@@ -86,8 +87,8 @@ func (store *BadgerStore) Put(key, value []byte) error {
 	return err
 }
 
-// IsReady returns true if the store is ready to use.
-func (store *BadgerStore) IsReady() bool {
+// isReady returns true if the store is ready to use.
+func (store *BadgerStore) isReady() bool {
 	return store.db != nil
 }
 

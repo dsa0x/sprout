@@ -23,6 +23,7 @@ var (
 	bucketName  = "boltstore"
 )
 
+// NewBolt instantiates a new BoltStore.
 func NewBolt(filePath string, filemode os.FileMode, opts ...bolt.Options) *BoltStore {
 	store := &BoltStore{
 		filePath: filePath,
@@ -93,8 +94,8 @@ func (store *BoltStore) Put(key []byte, value []byte) error {
 	return err
 }
 
-// IsReady returns true if the store is ready to use.
-func (store *BoltStore) IsReady() bool {
+// isReady returns true if the store is ready to use.
+func (store *BoltStore) isReady() bool {
 	return store.db != nil
 }
 

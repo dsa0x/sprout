@@ -6,7 +6,7 @@ Bloomdb implements a bloom filter in Go, while using boltdb and badgerdb as opti
 
 Bloomdb also implement a scalable bloom filter described in a paper written by [P. Almeida, C.Baquero, N. Preguiça, D. Hutchison](https://haslab.uminho.pt/cbm/files/dbloom.pdf).
 
-A scalable bloom filter removes the need for an apriori filter size as expected by the basic bloom filter, while preserving the desired false positive rate by scaling the filter as needed.
+A scalable bloom filter allows you to grow the filter as needed, and removes the need for an apriori filter size as expected by the basic bloom filter, while preserving the desired false positive rate by scaling the filter as needed.
 
 ### Installation
 
@@ -74,7 +74,7 @@ import (
 	"fmt"
 
 	"github.com/dgraph-io/badger/v3"
-	gobloomgo "github.com/dsa0x/gobloomgo"
+	"github.com/dsa0x/gobloomgo"
 )
 
 func main() {
@@ -86,3 +86,7 @@ func main() {
 	fmt.Printf("%s\n", bf.Get([]byte("key")))
 }
 ```
+
+#### References
+
+1. [P. Almeida, C.Baquero, N. Preguiça, D. Hutchison](https://haslab.uminho.pt/cbm/files/dbloom.pdf)
