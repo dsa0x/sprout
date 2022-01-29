@@ -43,13 +43,6 @@ func NewScalableBloom(err_rate float64, initial_capacity int, database Store, gr
 	if len(growth_rate) > 0 {
 		_growth_rate = growth_rate[0]
 	}
-	// number of hash functions
-	numHashFn := int(math.Ceil(math.Log2(1.0 / err_rate)))
-
-	seeds := make([]int64, numHashFn)
-	for i := 0; i < len(seeds); i++ {
-		seeds[i] = int64((i + 1) << 16)
-	}
 
 	initialFilter := NewBloom(err_rate, initial_capacity, database)
 	return &ScalableBloomFilter{
@@ -65,7 +58,7 @@ func NewScalableBloom(err_rate float64, initial_capacity int, database Store, gr
 
 // Add adds a key to the scalable bloom filter
 // Complexity: O(k)
-func (bf *ScalableBloomFilter) Add(key string, val []byte) {
+func (bf *ScalableBloomFilter) Add(key, val []byte) {
 	if bf.Top().count >= bf.Top().capacity {
 		bf.grow()
 	}
@@ -74,7 +67,7 @@ func (bf *ScalableBloomFilter) Add(key string, val []byte) {
 
 // Find checks if the key is in the bloom filter
 // Complexity: O(k*n)
-func (bf *ScalableBloomFilter) Find(key string) bool {
+func (bf *ScalableBloomFilter) Find(key []byte) bool {
 	for _, filter := range bf.filters {
 		if filter.Find(key) {
 			return true
@@ -85,7 +78,7 @@ func (bf *ScalableBloomFilter) Find(key string) bool {
 
 func (bf *ScalableBloomFilter) Get(key []byte) []byte {
 	for _, filter := range bf.filters {
-		if filter.Find(string(key)) {
+		if filter.Find(key) {
 			return filter.Get(key)
 		}
 	}
@@ -99,11 +92,11 @@ func (bf *ScalableBloomFilter) Top() *BloomFilter {
 
 // grow increases the capacity of the bloom filter by adding a new filter
 func (bf *ScalableBloomFilter) grow() {
-	bf.err_rate = bf.err_rate * bf.ratio
+	err_rate := bf.err_rate * math.Pow(bf.ratio, float64(len(bf.filters)))
 
 	// newCapacity = m0 * growth_rate^i * ln2
 	newCapacity := bf.m0 * int(math.Pow(float64(bf.growth_rate), float64(len(bf.filters))+1.0)*math.Ln2)
-	newFilter := NewBloom(bf.err_rate, newCapacity, bf.db)
+	newFilter := NewBloom(err_rate, newCapacity, bf.db)
 	bf.filters = append(bf.filters, newFilter)
 }
 
@@ -116,8 +109,8 @@ func (bf *ScalableBloomFilter) Capacity() int {
 	return sum
 }
 
-// FilterSize returns the size of the bloom filter
-func (bf *ScalableBloomFilter) FilterSize() int {
+// filterSize returns the total filter size
+func (bf *ScalableBloomFilter) filterSize() int {
 	sum := 0
 	for _, filter := range bf.filters {
 		sum += filter.bit_width
@@ -126,6 +119,6 @@ func (bf *ScalableBloomFilter) FilterSize() int {
 }
 
 // getStore returns the store used by the scalable bloom filter
-func (bf *ScalableBloomFilter) GetStore() Store {
+func (bf *ScalableBloomFilter) getStore() Store {
 	return bf.db
 }

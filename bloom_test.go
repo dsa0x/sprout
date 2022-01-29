@@ -44,7 +44,7 @@ func TestBloomFilter_Add(t *testing.T) {
 	bf := NewBloom(0.01, 1000, nil)
 
 	t.Run("success", func(t *testing.T) {
-		key, val := "foo", []byte("var")
+		key, val := []byte("foo"), []byte("var")
 		bf.Add(key, val)
 	})
 }
@@ -54,7 +54,7 @@ func TestBloomFilter_AddToDB(t *testing.T) {
 	bf := NewBloom(0.01, 1000, store)
 
 	t.Run("success", func(t *testing.T) {
-		key, val := "foo", []byte("var")
+		key, val := []byte("foo"), []byte("var")
 		bf.Add(key, val)
 
 		if val, err := bf.db.Get([]byte(key)); err != nil || val == nil {
@@ -62,7 +62,7 @@ func TestBloomFilter_AddToDB(t *testing.T) {
 		}
 	})
 	t.Run("should not find key that was not added", func(t *testing.T) {
-		key, val := "foo", []byte("var")
+		key, val := []byte("foo"), []byte("var")
 		bf.Add(key, val)
 
 		if val, err := bf.db.Get([]byte("bar")); err != nil || val != nil {
@@ -76,7 +76,7 @@ func TestBloomFilter_AddToBadgerDB(t *testing.T) {
 	bf := NewBloom(0.01, 1000, store)
 
 	t.Run("success", func(t *testing.T) {
-		key, val := "foo", []byte("var")
+		key, val := []byte("foo"), []byte("var")
 		bf.Add(key, val)
 
 		if val, err := bf.db.Get([]byte(key)); err != nil || val == nil {
@@ -84,7 +84,7 @@ func TestBloomFilter_AddToBadgerDB(t *testing.T) {
 		}
 	})
 	t.Run("should not find key that was not added", func(t *testing.T) {
-		key, val := "foo", []byte("var")
+		key, val := []byte("foo"), []byte("var")
 		bf.Add(key, val)
 
 		if val, err := bf.db.Get([]byte("bar")); err != nil || val != nil {
@@ -97,8 +97,8 @@ func TestBloomFilter(t *testing.T) {
 	store, cleanupFunc := DBSetupTest(t)
 	defer cleanupFunc()
 	bf := NewBloom(0.01, 10000, store)
-	bf.Add("foo", []byte("bar"))
-	bf.Add("baz", []byte("qux"))
+	bf.Add([]byte("foo"), []byte("bar"))
+	bf.Add([]byte("baz"), []byte("qux"))
 
 	t.Run("key may be in cache if found in bloom, def not in cache if not found", func(t *testing.T) {
 		table := []struct {
@@ -112,7 +112,7 @@ func TestBloomFilter(t *testing.T) {
 		}
 
 		for _, tt := range table {
-			found := bf.Find(tt.key)
+			found := bf.Find([]byte(tt.key))
 			if !found {
 				val, err := bf.db.Get([]byte(tt.key))
 				if err != nil {

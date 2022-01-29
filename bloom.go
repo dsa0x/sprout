@@ -78,9 +78,9 @@ func NewBloom(err_rate float64, capacity int, database Store) *BloomFilter {
 }
 
 // Add adds the key to the bloom filter
-func (bf *BloomFilter) Add(key string, val []byte) {
+func (bf *BloomFilter) Add(key, val []byte) {
 
-	indices := bf.candidates(key)
+	indices := bf.candidates(string(key))
 
 	if bf.Find(key) {
 		return
@@ -103,8 +103,8 @@ func (bf *BloomFilter) Add(key string, val []byte) {
 }
 
 // Find checks if the key exists in the bloom filter
-func (bf *BloomFilter) Find(key string) bool {
-	indices := bf.candidates(key)
+func (bf *BloomFilter) Find(key []byte) bool {
+	indices := bf.candidates(string(key))
 	return arrEvery(indices, bf.bit_array)
 }
 
@@ -114,7 +114,7 @@ func (bf *BloomFilter) Get(key []byte) []byte {
 		return nil
 	}
 
-	if !bf.Find(string(key)) {
+	if !bf.Find(key) {
 		return nil
 	}
 
@@ -146,9 +146,11 @@ func arrEvery(indices []uint64, bits []bool) bool {
 // candidates uses the hash function to return all index candidates of the given key
 func (bf *BloomFilter) candidates(key string) []uint64 {
 	var res []uint64
-	for _, seed := range bf.seeds {
+	for i, seed := range bf.seeds {
 		hash := getHash(key, seed)
-		idx := getBucketIndex(hash, uint64(bf.bit_width))
+		// each hash produces an index over m for its respective slice.
+		// e.g. 0-140, 140-280, 280-420
+		idx := uint64(i*bf.m) + getBucketIndex(hash, uint64(bf.m))
 		res = append(res, idx)
 	}
 	return res

@@ -8,27 +8,30 @@ import (
 
 func main() {
 
-	db := gobloomgo.NewBolt("/tmp/test.db", 0600)
-	// db := gobloomgo.NewBadger()
-	defer db.Close()
+	// opts := bbolt.Options{
+	// 	Timeout: 10 * time.Second,
+	// }
+	// db := gobloomgo.NewBolt("/tmp/test.db", 0600, opts)
+	// defer db.Close()
+
+	// opts := badger.DefaultOptions("/tmp/bloom.db")
+	// db := gobloomgo.NewBadger(opts)
+
 	// blm := gobloomgo.NewBloom(0.01, 100, db)
-	bf := gobloomgo.NewScalableBloom(0.9, 100, db)
+	bf := gobloomgo.NewScalableBloom(0.001, 100, nil)
+
+	mp := map[bool]int{}
 
 	// start := time.Now()
-	bf.Add("key", []byte("bar"))
-	for i := 0; i < 200; i++ {
-		bf.Add(fmt.Sprintf("foo%d", i), []byte("bar"))
+	bf.Add([]byte("key"), []byte("bar"))
+	for i := 0; i < 20000; i++ {
+		bf.Add([]byte(fmt.Sprintf("foo%d", i)), []byte("bar"))
 	}
-	bf.FilterSize()
-	// fmt.Printf("%s\n", bf.Get([]byte("key")))
-	// fmt.Println(time.Since(start), bf.Capacity(), bf.FilterSize())
-
-	// fmt.Println(unsafe.Sizeof(uint8(8)))
-	// fmt.Println(unsafe.Sizeof([]bool{false, false, true}))
-	// fmt.Println(unsafe.Sizeof(byte('1')))
-
-	// fmt.Println(bf.Find("foo"))
-	// fmt.Println(bf.Find("baz"))
-	// fmt.Println(bf.Find("ese"))
+	for i := 0; i < 30000; i++ {
+		mp[bf.Find([]byte(fmt.Sprintf("foo%d", i)))] += 1
+	}
+	// bf.FilterSize()
+	fmt.Printf("%s %v\n", bf.Get([]byte("key")), mp)
+	fmt.Println(bf.Capacity())
 
 }

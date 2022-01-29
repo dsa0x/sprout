@@ -9,7 +9,7 @@ func TestScalableBloom(t *testing.T) {
 	bf := NewScalableBloom(0.01, 1000, nil)
 
 	t.Run("success", func(t *testing.T) {
-		key, val := "foo", []byte("var")
+		key, val := []byte("foo"), []byte("var")
 		bf.Add(key, val)
 	})
 }
@@ -20,7 +20,7 @@ func TestScalableBloomFilter_AddToDB(t *testing.T) {
 	bf := NewScalableBloom(0.01, 1000, store)
 
 	t.Run("success", func(t *testing.T) {
-		key, val := "foo", []byte("var")
+		key, val := []byte("foo"), []byte("var")
 		bf.Add(key, val)
 
 		if val, err := bf.db.Get([]byte(key)); err != nil || val == nil {
@@ -28,7 +28,7 @@ func TestScalableBloomFilter_AddToDB(t *testing.T) {
 		}
 	})
 	t.Run("should not find key that was not added", func(t *testing.T) {
-		key, val := "foo", []byte("var")
+		key, val := []byte("foo"), []byte("var")
 		bf.Add(key, val)
 
 		if val, err := bf.db.Get([]byte("bar")); err != nil || val != nil {
@@ -43,10 +43,10 @@ func TestScalableBloomFilter_GrowFilter(t *testing.T) {
 	bf := NewScalableBloom(0.01, initialCap, store)
 
 	t.Run("should grow filter when capacity is full", func(t *testing.T) {
-		key, val := "foo", []byte("var")
+		key, val := []byte("foo"), []byte("var")
 		bf.Add(key, val)
 		for i := 0; i < initialCap*10; i++ {
-			bf.Add(fmt.Sprintf("foo%d", i), val)
+			bf.Add([]byte(fmt.Sprintf("foo%d", i)), val)
 		}
 
 		if val, err := bf.db.Get([]byte(key)); err != nil || val == nil {
