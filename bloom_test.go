@@ -80,6 +80,21 @@ func TestBloomFilter_Add(t *testing.T) {
 		bf.Add([]byte("test"), []byte("bar"))
 		t.Errorf("Expected function to panic when number of entries exceed the capacity")
 	})
+
+	t.Run("get should panic when there is no persistent store", func(t *testing.T) {
+		defer func() {
+			if r := recover(); r == nil {
+				fmt.Println("recovered from panic")
+				return
+			}
+		}()
+
+		count := 100
+		bf := NewBloom(0.1, count, nil)
+		bf.Add([]byte("foo"), []byte("bar"))
+		val := bf.Get([]byte("foo"))
+		t.Errorf("Expected function to panic when there is no persistent store, got %s", val)
+	})
 }
 func TestBloomFilter_AddToDB(t *testing.T) {
 	store, cleanupFunc := DBSetupTest(t)

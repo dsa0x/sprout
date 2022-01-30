@@ -78,6 +78,11 @@ import (
 )
 
 func main() {
+
+	bf := gobloomgo.NewScalableBloom(0.01, 100, nil)
+	bf.Find([]byte("foo"))
+
+	// with a persistent store
 	opts := badger.DefaultOptions("/tmp/bloom.db")
 	db := gobloomgo.NewBadger(opts)
 	bf := gobloomgo.NewScalableBloom(0.9, 100, db)
