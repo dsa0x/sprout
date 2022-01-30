@@ -1,8 +1,6 @@
 package gobloomgo
 
 import (
-	"bytes"
-	"encoding/gob"
 	"fmt"
 	"log"
 	"math"
@@ -52,8 +50,6 @@ func NewBloom(err_rate float64, capacity int, database Store) *BloomFilter {
 	if capacity <= 0 {
 		panic("Capacity must be greater than 0")
 	}
-
-	// P = err_rate
 
 	// number of hash functions (k)
 	numHashFn := int(math.Ceil(math.Log2(1.0 / err_rate)))
@@ -186,32 +182,4 @@ func (bf *BloomFilter) Count() int {
 // FilterSize returns the size of the bloom filter
 func (bf *BloomFilter) FilterSize() int {
 	return bf.bit_width
-}
-
-// https://en.wikipedia.org/wiki/Fowler%E2%80%93Noll%E2%80%93Vo_hash_function
-// fnvHash implements the Fowler–Noll–Vo hash function
-func fnvHash(key string) (int64, error) {
-	var offsetBasis, fnvPrime int64
-	offsetBasis = math.MaxInt64
-	fnvPrime = 0x100000001b3
-	hash := offsetBasis
-
-	buf := new(bytes.Buffer)
-	enc := gob.NewEncoder(buf)
-	err := enc.Encode(&key)
-	if err != nil {
-		return 0, err
-	}
-
-	for i := 0; i < buf.Len(); i++ {
-		b, err := buf.ReadByte()
-		if err != nil {
-			return 0, err
-		}
-		hash = hash * fnvPrime
-		hash = int64(uint8(hash>>8) ^ uint8(b))
-	}
-
-	return hash, nil
-
 }

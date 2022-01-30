@@ -30,17 +30,6 @@ func BadgerDBSetupTest(t *testing.T) (Store, func()) {
 	}
 }
 
-func TestFnvHash(t *testing.T) {
-
-	t.Run("success", func(t *testing.T) {
-		val := "hello"
-		_, err := fnvHash(val)
-		if err != nil {
-			t.Errorf("error occured when fnvHash(%s) : %s", val, err)
-		}
-	})
-}
-
 func TestBloomFilter_Add(t *testing.T) {
 	bf := NewBloom(0.01, 1000, nil)
 
