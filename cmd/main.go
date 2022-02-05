@@ -12,33 +12,24 @@ import (
 )
 
 func main() {
-	// PrintMemUsage()
-	// main3()
-	// PrintMemUsage()
-	// return
 	num := 2_000_000
 	bf := gobloomgo.NewBloom2(0.001, num, nil)
 	defer bf.Close()
 	// return
-	// start := time.Now()
+	start := time.Now()
 	bf.Add([]byte("foo"), []byte("bar"))
-	// for i := 0; i < num-1; i++ {
-	// 	// fmt.Println(i, "Align::::", bf.Find(by[:]))
-	// 	bf.Add([]byte{byte(i)}, []byte("bar"))
-	// 	fmt.Println(bf.Find([]byte{byte(i)}))
-	// 	// if i%4000000 == 0 {
-	// 	// 	fmt.Printf("Run %d: ", i)
-	// 	// 	PrintMemUsage()
-	// 	// }
-	// }
-	// 	PrintMemUsage()
+
+	for i := 0; i < num-1; i++ {
+		bf.Add([]byte(fmt.Sprintf("%d", i)), []byte("bar"))
+		// fmt.Println(i+10, bf.Find([]byte(fmt.Sprintf("%d", i+1))))
+	}
 	fmt.Println(bf.Find([]byte("foo")))
 	fmt.Println(bf.Find([]byte("bar")))
-	// 	fmt.Println(time.Since(start))
+	fmt.Printf("Added %d elements in %v\n", bf.Capacity(), time.Since(start))
+	PrintMemUsage()
 }
 
-func main4() {
-	num := 40_000
+func main4(num int) {
 	db, err := badger.Open(badger.DefaultOptions("badger.db"))
 	if err != nil {
 		panic(err)
@@ -47,7 +38,7 @@ func main4() {
 	for i := 0; i < num; i++ {
 		err = db.Update(func(tx *badger.Txn) error {
 			for i := 0; i < num; i++ {
-				err := tx.Set([]byte{byte(i)}, []byte(fmt.Sprintf("barjbsdabhsdbabsfdbksdfhjsdfhsfhdjhjsdghjsghjbsdghbjsdgjhbsdghjb-%d", i)))
+				err := tx.Set([]byte{byte(i)}, []byte(fmt.Sprintf("bar-%d", i)))
 				if err != nil {
 					return err
 				}
@@ -62,8 +53,7 @@ func main4() {
 
 }
 
-func main3() {
-	num := 40_000_00
+func main3(num int) {
 	_ = num
 	db, err := bbolt.Open("./test.db", 0600, nil)
 	if err != nil {
@@ -86,32 +76,10 @@ func main3() {
 		return
 	}
 
-	// n, batchN := 400000, 200000
-	// ksize, vsize := 8, 500
-
-	// for i := 0; i < n; i += batchN {
-	// 	if err := db.Update(func(tx *bbolt.Tx) error {
-	// 		b, err := tx.CreateBucketIfNotExists([]byte("widgets"))
-	// 		if err != nil {
-	// 			return err
-	// 		}
-	// 		for j := 0; j < batchN; j++ {
-	// 			k, v := make([]byte, ksize), make([]byte, vsize)
-	// 			binary.BigEndian.PutUint32(k, uint32(i+j))
-	// 			if err := b.Put(k, v); err != nil {
-	// 				return err
-	// 			}
-	// 		}
-	// 		return nil
-	// 	}); err != nil {
-	// 		fmt.Println(err)
-	// 	}
-	// }
-
 	err = db.Update(func(tx *bbolt.Tx) error {
 		for i := 0; i < num; i++ {
 			b := tx.Bucket([]byte("mybucket"))
-			err := b.Put([]byte{byte(i)}, []byte(fmt.Sprintf("barjbsdabhsdbabsfdbksdfhjsdfhsfhdjhjsdghjsghjbsdghbjsdgjhbsdghjb-%d", i)))
+			err := b.Put([]byte{byte(i)}, []byte(fmt.Sprintf("bar-%d", i)))
 			if err != nil {
 				return err
 			}
@@ -135,13 +103,6 @@ func main3() {
 			}
 		}
 		fmt.Println("count: ", count)
-
-		// for i := 0; i < 100000; i++ {
-		// 	b := tx.Bucket([]byte("mybucket"))
-		// 	val := b.Get([]byte{byte(i)})
-		// 	fmt.Println(string(val))
-
-		// }
 		return nil
 	})
 
@@ -180,8 +141,6 @@ func main2() {
 	fmt.Println(time.Since(start))
 	// bf.Add([]byte("foo"), []byte("var"))
 	PrintMemUsage()
-	// fmt.Printf("Count: %d, Capacity: %d,\n", bf.Count(), bf.Capacity())
-	// fmt.Println(bf.Capacity(), bf.ExpCapacity(), bf.Count(), bf.Prob())
 
 }
 

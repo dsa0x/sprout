@@ -6,6 +6,7 @@ import (
 	"math"
 	"os"
 	"sync"
+	"unsafe"
 
 	"github.com/edsrzf/mmap-go"
 )
@@ -31,6 +32,7 @@ type BloomFilter2 struct {
 	mem        mmap.MMap
 	pageOffset int
 	lock       sync.Mutex
+	byteSize   int
 
 	// m is the number bits per slice(hashFn)
 	m int
@@ -54,8 +56,6 @@ func NewBloom2(err_rate float64, capacity int, database Store) *BloomFilter2 {
 		panic("Capacity must be greater than 0")
 	}
 
-	pageOffset := 68
-
 	// number of hash functions (k)
 	numHashFn := int(math.Ceil(math.Log2(1.0 / err_rate)))
 
@@ -64,8 +64,6 @@ func NewBloom2(err_rate float64, capacity int, database Store) *BloomFilter2 {
 
 	// M
 	bit_width := int((float64(capacity) * math.Abs(math.Log(err_rate)) / ln22))
-
-	bit_width /= 2
 
 	//m
 	bits_per_slice := bit_width / numHashFn
@@ -80,11 +78,19 @@ func NewBloom2(err_rate float64, capacity int, database Store) *BloomFilter2 {
 		log.Fatalf("error opening file: %v", err)
 	}
 
+	f.Truncate(0)
+
+	var b byte
+	byteSize := int(unsafe.Sizeof(&b))
+
+	// we only need bit_width/8 bits, but only after calculating m
+	bit_width /= byteSize
+	bit_width += byteSize // add extra 1 byte to ensure we have a full byte at the end
+
 	if err := f.Truncate(int64(bit_width)); err != nil {
 		log.Fatalf("Error truncating file: %s", err)
 	}
 
-	fmt.Println("bit_width:", bit_width, "numHashFn:", numHashFn)
 	mem, err := mmap.MapRegion(f, bit_width, mmap.RDWR, 0, 0)
 	if err != nil {
 		log.Fatalf("Mmap error: %v", err)
@@ -96,16 +102,16 @@ func NewBloom2(err_rate float64, capacity int, database Store) *BloomFilter2 {
 	}
 
 	return &BloomFilter2{
-		err_rate:   err_rate,
-		capacity:   capacity,
-		bit_width:  bit_width,
-		memFile:    f,
-		mem:        mem,
-		pageOffset: pageOffset,
-		m:          bits_per_slice,
-		seeds:      seeds,
-		db:         database,
-		lock:       sync.Mutex{},
+		err_rate:  err_rate,
+		capacity:  capacity,
+		bit_width: bit_width,
+		memFile:   f,
+		mem:       mem,
+		m:         bits_per_slice,
+		seeds:     seeds,
+		db:        database,
+		lock:      sync.Mutex{},
+		byteSize:  byteSize,
 	}
 }
 
@@ -115,8 +121,8 @@ func (bf *BloomFilter2) Add(key, val []byte) {
 	defer bf.lock.Unlock()
 	defer func() {
 		if r := recover(); r != nil {
-			fmt.Println("Error finding key:", r)
-			os.Exit(1)
+			log.Panicf("Error adding key %s: %v", key, r)
+			// os.Exit(1)
 		}
 	}()
 
@@ -127,7 +133,10 @@ func (bf *BloomFilter2) Add(key, val []byte) {
 	}
 
 	for i := 0; i < len(indices); i++ {
-		idx, mask := bf.getBitIndex(indices[i])
+		idx, mask := bf.getBitIndexN(indices[i])
+
+		// set the bit at mask position of the byte at idx
+		// e.g. if idx = 2 and mask = 01000000, set the bit at 2nd position of byte 2
 		bf.mem[idx] |= mask
 	}
 	bf.count++
@@ -142,14 +151,15 @@ func (bf *BloomFilter2) Add(key, val []byte) {
 func (bf *BloomFilter2) Find(key []byte) bool {
 	defer func() {
 		if r := recover(); r != nil {
-			fmt.Println("Error finding key:", r)
-			os.Exit(1)
+			log.Panicf("Error finding key:", r)
+			// os.Exit(1)
 		}
 	}()
 
 	indices := bf.candidates(string(key))
+
 	for i := 0; i < len(indices); i++ {
-		idx, mask := bf.getBitIndex(indices[i])
+		idx, mask := bf.getBitIndexN(indices[i])
 		bit := bf.mem[idx]
 
 		// check if the mask part of the bit is set
@@ -183,7 +193,7 @@ func (bf *BloomFilter2) hasStore() bool {
 	return bf.db != nil && bf.db.isReady()
 }
 
-// getBitIndex returns the index and mask for the bit.
+// getBitIndex returns the index and mask for the bit. (unused)
 //
 // The first half of the bits are set at the beginning of the byte,
 // the second half at the end
@@ -196,12 +206,24 @@ func (bf *BloomFilter2) getBitIndex(idx uint64) (uint64, byte) {
 	} else {
 		mask = 0xF0 // 11110000
 	}
-
 	return idx, mask
-
 }
 
-// candidates uses the hash function to return all index candidates of the given key
+// getBitIndexN returns the index and mask for the bit.
+func (bf *BloomFilter2) getBitIndexN(idx uint64) (uint64, byte) {
+	quot, rem := divmod(int64(idx), int64(bf.byteSize))
+
+	// shift the mask to the right by the remainder to get the bit index in the byte
+	// if byteSize = 8,
+	// 128 = 0x80 = 1000 0000, 128 >> 2 = 64.....and so on
+	// 1000 0000 >> 2 = 0100 0000
+	byteSizeInDec := int64(math.Pow(2, float64(bf.byteSize)-1))
+	shift := byte((byteSizeInDec >> rem)) // 128 >> 1,2..
+
+	return uint64(quot), shift
+}
+
+// candidates uses the hash function to get all index candidates of the given key
 func (bf *BloomFilter2) candidates(key string) []uint64 {
 	var res []uint64
 	for i, seed := range bf.seeds {
@@ -242,4 +264,11 @@ func (bf *BloomFilter2) Count() int {
 // FilterSize returns the size of the bloom filter
 func (bf *BloomFilter2) FilterSize() int {
 	return bf.bit_width
+}
+
+// divmod returns the quotient and remainder of a/b
+func divmod(num, denom int64) (quot, rem int64) {
+	quot = num / denom
+	rem = num % denom
+	return
 }
