@@ -9,9 +9,10 @@ import (
 	"unsafe"
 
 	"github.com/edsrzf/mmap-go"
+	"github.com/spaolacci/murmur3"
 )
 
-type BloomFilter2 struct {
+type BloomFilter struct {
 
 	// The desired false positive rate
 	err_rate float64
@@ -48,7 +49,7 @@ type BloomFilter2 struct {
 //
 // database is the persistent store to attach to the filter. can be nil.
 
-func NewBloom2(err_rate float64, capacity int, database Store) *BloomFilter2 {
+func NewBloom(err_rate float64, capacity int, database Store) *BloomFilter {
 	if err_rate <= 0 || err_rate >= 1 {
 		panic("Error rate must be between 0 and 1")
 	}
@@ -101,7 +102,7 @@ func NewBloom2(err_rate float64, capacity int, database Store) *BloomFilter2 {
 		log.Fatalf("Error writing to file: %v", err)
 	}
 
-	return &BloomFilter2{
+	return &BloomFilter{
 		err_rate:  err_rate,
 		capacity:  capacity,
 		bit_width: bit_width,
@@ -116,7 +117,7 @@ func NewBloom2(err_rate float64, capacity int, database Store) *BloomFilter2 {
 }
 
 // Add adds the key to the bloom filter
-func (bf *BloomFilter2) Add(key, val []byte) {
+func (bf *BloomFilter) Add(key, val []byte) {
 	bf.lock.Lock()
 	defer bf.lock.Unlock()
 	defer func() {
@@ -148,7 +149,7 @@ func (bf *BloomFilter2) Add(key, val []byte) {
 }
 
 // Find checks if the key exists in the bloom filter
-func (bf *BloomFilter2) Find(key []byte) bool {
+func (bf *BloomFilter) Find(key []byte) bool {
 	defer func() {
 		if r := recover(); r != nil {
 			log.Panicf("Error finding key:", r)
@@ -171,9 +172,9 @@ func (bf *BloomFilter2) Find(key []byte) bool {
 }
 
 // Get gets the key from the underlying persistent store
-func (bf *BloomFilter2) Get(key []byte) []byte {
+func (bf *BloomFilter) Get(key []byte) []byte {
 	if !bf.hasStore() {
-		log.Panicf("BloomFilter2 has no persistent store. Use Find() instead")
+		log.Panicf("BloomFilter has no persistent store. Use Find() instead")
 	}
 
 	if !bf.Find(key) {
@@ -189,7 +190,7 @@ func (bf *BloomFilter2) Get(key []byte) []byte {
 
 }
 
-func (bf *BloomFilter2) hasStore() bool {
+func (bf *BloomFilter) hasStore() bool {
 	return bf.db != nil && bf.db.isReady()
 }
 
@@ -197,7 +198,7 @@ func (bf *BloomFilter2) hasStore() bool {
 //
 // The first half of the bits are set at the beginning of the byte,
 // the second half at the end
-func (bf *BloomFilter2) getBitIndex(idx uint64) (uint64, byte) {
+func (bf *BloomFilter) getBitIndex(idx uint64) (uint64, byte) {
 	denom := uint64(bf.bit_width) / 2
 	var mask byte
 	if idx >= denom {
@@ -210,7 +211,7 @@ func (bf *BloomFilter2) getBitIndex(idx uint64) (uint64, byte) {
 }
 
 // getBitIndexN returns the index and mask for the bit.
-func (bf *BloomFilter2) getBitIndexN(idx uint64) (uint64, byte) {
+func (bf *BloomFilter) getBitIndexN(idx uint64) (uint64, byte) {
 	quot, rem := divmod(int64(idx), int64(bf.byteSize))
 
 	// shift the mask to the right by the remainder to get the bit index in the byte
@@ -224,7 +225,7 @@ func (bf *BloomFilter2) getBitIndexN(idx uint64) (uint64, byte) {
 }
 
 // candidates uses the hash function to get all index candidates of the given key
-func (bf *BloomFilter2) candidates(key string) []uint64 {
+func (bf *BloomFilter) candidates(key string) []uint64 {
 	var res []uint64
 	for i, seed := range bf.seeds {
 		hash := getHash(key, seed)
@@ -236,13 +237,25 @@ func (bf *BloomFilter2) candidates(key string) []uint64 {
 	return res
 }
 
+// getHash returns the non-cryptographic murmur hash of the key seeded with the given seed
+func getHash(key string, seed int64) uint64 {
+	hasher := murmur3.New64WithSeed(uint32(seed))
+	hasher.Write([]byte(key))
+	return hasher.Sum64()
+}
+
+// getBucketIndex returns the index of the bucket where the hash falls in
+func getBucketIndex(hash, width uint64) uint64 {
+	return hash % width
+}
+
 // Capacity returns the total capacity of the scalable bloom filter
-func (bf *BloomFilter2) Capacity() int {
+func (bf *BloomFilter) Capacity() int {
 	return bf.capacity
 }
 
 // Close closes the file handle to the filter and the persistent store (if any)
-func (bf *BloomFilter2) Close() error {
+func (bf *BloomFilter) Close() error {
 	if err := bf.mem.Flush(); err != nil {
 		_ = bf.memFile.Close()
 		return err
@@ -257,12 +270,12 @@ func (bf *BloomFilter2) Close() error {
 }
 
 // Count returns the number of items added to the bloom filter
-func (bf *BloomFilter2) Count() int {
+func (bf *BloomFilter) Count() int {
 	return bf.count
 }
 
 // FilterSize returns the size of the bloom filter
-func (bf *BloomFilter2) FilterSize() int {
+func (bf *BloomFilter) FilterSize() int {
 	return bf.bit_width
 }
 

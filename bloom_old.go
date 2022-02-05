@@ -7,12 +7,11 @@ import (
 	"os"
 
 	"github.com/edsrzf/mmap-go"
-	"github.com/spaolacci/murmur3"
 )
 
 var ErrKeyNotFound = fmt.Errorf("Key not found")
 
-type BloomFilter struct {
+type BloomFilter2 struct {
 
 	// The desired false positive rate
 	err_rate float64
@@ -47,7 +46,7 @@ type BloomFilter struct {
 // capacity is the number of entries intended to be added to the filter
 //
 // database is the persistent store to attach to the filter. can be nil.
-func NewBloom(err_rate float64, capacity int, database Store) *BloomFilter {
+func NewBloom2(err_rate float64, capacity int, database Store) *BloomFilter2 {
 	if err_rate <= 0 || err_rate >= 1 {
 		panic("Error rate must be between 0 and 1")
 	}
@@ -72,7 +71,7 @@ func NewBloom(err_rate float64, capacity int, database Store) *BloomFilter {
 		seeds[i] = int64((i + 1) << 16)
 	}
 
-	return &BloomFilter{
+	return &BloomFilter2{
 		err_rate:  err_rate,
 		capacity:  capacity,
 		bit_width: bit_width,
@@ -84,12 +83,12 @@ func NewBloom(err_rate float64, capacity int, database Store) *BloomFilter {
 }
 
 // Add adds the key to the bloom filter
-func (bf *BloomFilter) Add(key, val []byte) {
+func (bf *BloomFilter2) Add(key, val []byte) {
 
 	indices := bf.candidates(string(key))
 
 	if bf.count >= bf.capacity {
-		log.Panicf("BloomFilter has reached full capacity %d, count: %d", bf.capacity, bf.count)
+		log.Panicf("BloomFilter2 has reached full capacity %d, count: %d", bf.capacity, bf.count)
 	}
 
 	for i := 0; i < len(indices); i++ {
@@ -104,15 +103,15 @@ func (bf *BloomFilter) Add(key, val []byte) {
 }
 
 // Find checks if the key exists in the bloom filter
-func (bf *BloomFilter) Find(key []byte) bool {
+func (bf *BloomFilter2) Find(key []byte) bool {
 	indices := bf.candidates(string(key))
 	return arrEvery(indices, bf.bit_array)
 }
 
 // Get Gets the key from the underlying persistent store
-func (bf *BloomFilter) Get(key []byte) []byte {
+func (bf *BloomFilter2) Get(key []byte) []byte {
 	if !bf.hasStore() {
-		log.Panicf("BloomFilter has no persistent store. Use Find() instead")
+		log.Panicf("BloomFilter2 has no persistent store. Use Find() instead")
 	}
 
 	if !bf.Find(key) {
@@ -128,7 +127,7 @@ func (bf *BloomFilter) Get(key []byte) []byte {
 
 }
 
-func (bf *BloomFilter) hasStore() bool {
+func (bf *BloomFilter2) hasStore() bool {
 	return bf.db != nil && bf.db.isReady()
 }
 
@@ -145,7 +144,7 @@ func arrEvery(indices []uint64, bits []bool) bool {
 }
 
 // candidates uses the hash function to return all index candidates of the given key
-func (bf *BloomFilter) candidates(key string) []uint64 {
+func (bf *BloomFilter2) candidates(key string) []uint64 {
 	var res []uint64
 	for i, seed := range bf.seeds {
 		hash := getHash(key, seed)
@@ -157,35 +156,23 @@ func (bf *BloomFilter) candidates(key string) []uint64 {
 	return res
 }
 
-// getHash returns the non-cryptographic murmur hash of the key seeded with the given seed
-func getHash(key string, seed int64) uint64 {
-	hasher := murmur3.New64WithSeed(uint32(seed))
-	hasher.Write([]byte(key))
-	return hasher.Sum64()
-}
-
-// getBucketIndex returns the index of the bucket where the hash falls in
-func getBucketIndex(hash, width uint64) uint64 {
-	return hash % width
-}
-
 // Capacity returns the total capacity of the scalable bloom filter
-func (bf *BloomFilter) Capacity() int {
+func (bf *BloomFilter2) Capacity() int {
 	return bf.capacity
 }
 
 // Count returns the number of items added to the bloom filter
-func (bf *BloomFilter) Count() int {
+func (bf *BloomFilter2) Count() int {
 	return bf.count
 }
 
 // FilterSize returns the size of the bloom filter
-func (bf *BloomFilter) FilterSize() int {
+func (bf *BloomFilter2) FilterSize() int {
 	return bf.bit_width
 }
 
 // Close closes the file handle to the filter and the persistent store (if any)
-func (bf *BloomFilter) Close() error {
+func (bf *BloomFilter2) Close() error {
 	if bf.hasStore() {
 		return bf.db.Close()
 	}
