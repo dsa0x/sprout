@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"os"
 	"testing"
 
 	"github.com/dgraph-io/badger/v3"
@@ -12,8 +13,12 @@ import (
 func Benchmark_NewBloom(b *testing.B) {
 	b.ReportAllocs()
 	b.ResetTimer()
-	bf := gobloomgo.NewBloom(0.001, b.N, nil)
-	defer bf.Close()
+	opts := &gobloomgo.BloomOptions{
+		Err_rate: 0.01,
+		Path:     "/tmp/bloom.db",
+		Capacity: b.N,
+	}
+	bf := gobloomgo.NewBloom(opts)
 
 	for i := 0; i < b.N; i++ {
 		bf.Add([]byte{byte(i)}, []byte("bar"))
@@ -23,6 +28,11 @@ func Benchmark_NewBloom(b *testing.B) {
 		bf.Find([]byte{byte(n)})
 		n++
 	}
+
+	defer func() {
+		bf.Close()
+		os.Remove(opts.Path)
+	}()
 
 }
 func Benchmark_NewBloom2(b *testing.B) {

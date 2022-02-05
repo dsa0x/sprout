@@ -40,31 +40,52 @@ type BloomFilter struct {
 
 	// one seed per hash function
 	seeds []int64
+
+	path string
+}
+
+type BloomOptions struct {
+
+	// path to the filter
+	Path string
+
+	// The desired false positive rate
+	Err_rate float64
+
+	// the number of items intended to be added to the bloom filter (n)
+	Capacity int
+
+	// persistent storage
+	Database Store
+
+	// growth rate of the bloom filter (valid values are 2 and 4)
+	GrowthRate int
+
+	Scalable bool
 }
 
 // NewBloom creates a new bloom filter.
-// err_rate is the desired false positive rate. e.g. 0.1 error rate implies 1 in 1000
+// err_rate is the desired false error rate. e.g. 0.001 implies 1 in 1000
 //
 // capacity is the number of entries intended to be added to the filter
 //
 // database is the persistent store to attach to the filter. can be nil.
-
-func NewBloom(err_rate float64, capacity int, database Store) *BloomFilter {
-	if err_rate <= 0 || err_rate >= 1 {
+func NewBloom(opts *BloomOptions) *BloomFilter {
+	if opts.Err_rate <= 0 || opts.Err_rate >= 1 {
 		panic("Error rate must be between 0 and 1")
 	}
-	if capacity <= 0 {
+	if opts.Capacity <= 0 {
 		panic("Capacity must be greater than 0")
 	}
 
 	// number of hash functions (k)
-	numHashFn := int(math.Ceil(math.Log2(1.0 / err_rate)))
+	numHashFn := int(math.Ceil(math.Log2(1.0 / opts.Err_rate)))
 
 	//ln22 = ln2^2
 	ln22 := math.Pow(math.Ln2, 2)
 
 	// M
-	bit_width := int((float64(capacity) * math.Abs(math.Log(err_rate)) / ln22))
+	bit_width := int((float64(opts.Capacity) * math.Abs(math.Log(opts.Err_rate)) / ln22))
 
 	//m
 	bits_per_slice := bit_width / numHashFn
@@ -74,7 +95,11 @@ func NewBloom(err_rate float64, capacity int, database Store) *BloomFilter {
 		seeds[i] = int64((i + 1) << 16)
 	}
 
-	f, err := os.OpenFile("bloom.db", os.O_RDWR|os.O_CREATE, 0644)
+	if opts.Path == "" {
+		opts.Path = "/tmp/bloom.db"
+	}
+
+	f, err := os.OpenFile(opts.Path, os.O_RDWR|os.O_CREATE, 0644)
 	if err != nil {
 		log.Fatalf("error opening file: %v", err)
 	}
@@ -103,16 +128,17 @@ func NewBloom(err_rate float64, capacity int, database Store) *BloomFilter {
 	}
 
 	return &BloomFilter{
-		err_rate:  err_rate,
-		capacity:  capacity,
+		err_rate:  opts.Err_rate,
+		capacity:  opts.Capacity,
 		bit_width: bit_width,
 		memFile:   f,
 		mem:       mem,
 		m:         bits_per_slice,
 		seeds:     seeds,
-		db:        database,
+		db:        opts.Database,
 		lock:      sync.Mutex{},
 		byteSize:  byteSize,
+		path:      opts.Path,
 	}
 }
 
@@ -152,7 +178,7 @@ func (bf *BloomFilter) Add(key, val []byte) {
 func (bf *BloomFilter) Find(key []byte) bool {
 	defer func() {
 		if r := recover(); r != nil {
-			log.Panicf("Error finding key:", r)
+			log.Panicf("Error finding key: %v", r)
 			// os.Exit(1)
 		}
 	}()

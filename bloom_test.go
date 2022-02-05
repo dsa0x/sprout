@@ -31,7 +31,17 @@ func BadgerDBSetupTest(t *testing.T) (Store, func()) {
 }
 
 func TestBloomFilter_Add(t *testing.T) {
-	bf := NewBloom(0.01, 1000, nil)
+	opts := &BloomOptions{
+		Err_rate: 0.01,
+		Capacity: 1000,
+		Path:     "./test.db",
+	}
+	bf := NewBloom(opts)
+
+	defer func() {
+		bf.Close()
+		os.Remove(opts.Path)
+	}()
 
 	t.Run("success", func(t *testing.T) {
 		key, val := []byte("foo"), []byte("var")
@@ -39,7 +49,18 @@ func TestBloomFilter_Add(t *testing.T) {
 	})
 
 	t.Run("count should sum up to the number of entries added", func(t *testing.T) {
-		bf := NewBloom(0.01, 110000, nil)
+		opts := &BloomOptions{
+			Err_rate: 0.01,
+			Capacity: 110000,
+			Path:     "./test.db",
+		}
+		bf := NewBloom(opts)
+
+		defer func() {
+			bf.Close()
+			os.Remove(opts.Path)
+		}()
+
 		count := 100000
 		for i := 0; i < count; i++ {
 			var by [4]byte
@@ -60,7 +81,17 @@ func TestBloomFilter_Add(t *testing.T) {
 		}()
 
 		count := 1000
-		bf := NewBloom(0.01, count, nil)
+		opts := &BloomOptions{
+			Err_rate: 0.01,
+			Capacity: 1000,
+			Path:     "./test.db",
+		}
+		bf := NewBloom(opts)
+
+		defer func() {
+			bf.Close()
+			os.Remove(opts.Path)
+		}()
 		for i := 0; i < count; i++ {
 			var by [4]byte
 			binary.LittleEndian.PutUint32(by[:], uint32(i))
@@ -78,8 +109,18 @@ func TestBloomFilter_Add(t *testing.T) {
 			}
 		}()
 
-		count := 100
-		bf := NewBloom(0.1, count, nil)
+		opts := &BloomOptions{
+			Err_rate: 0.1,
+			Capacity: 100,
+			Path:     "./test.db",
+		}
+		bf := NewBloom(opts)
+
+		defer func() {
+			bf.Close()
+			os.Remove(opts.Path)
+		}()
+
 		bf.Add([]byte("foo"), []byte("bar"))
 		val := bf.Get([]byte("foo"))
 		t.Errorf("Expected function to panic when there is no persistent store, got %s", val)
@@ -88,7 +129,19 @@ func TestBloomFilter_Add(t *testing.T) {
 func TestBloomFilter_AddToDB(t *testing.T) {
 	store, cleanupFunc := DBSetupTest(t)
 	defer cleanupFunc()
-	bf := NewBloom(0.01, 1000, store)
+	opts := &BloomOptions{
+		Err_rate: 0.01,
+		Capacity: 1000,
+		Database: store,
+		Path:     "./test.db",
+	}
+
+	bf := NewBloom(opts)
+
+	defer func() {
+		bf.Close()
+		os.Remove(opts.Path)
+	}()
 
 	t.Run("success", func(t *testing.T) {
 		key, val := []byte("foo"), []byte("var")
@@ -110,7 +163,17 @@ func TestBloomFilter_AddToDB(t *testing.T) {
 func TestBloomFilter_AddToBadgerDB(t *testing.T) {
 	store, cleanupFunc := BadgerDBSetupTest(t)
 	defer cleanupFunc()
-	bf := NewBloom(0.01, 1000, store)
+	opts := &BloomOptions{
+		Err_rate: 0.01,
+		Capacity: 1000,
+		Database: store,
+		Path:     "./test.db",
+	}
+	bf := NewBloom(opts)
+	defer func() {
+		bf.Close()
+		os.Remove(opts.Path)
+	}()
 
 	t.Run("success", func(t *testing.T) {
 		key, val := []byte("foo"), []byte("var")
@@ -133,7 +196,19 @@ func TestBloomFilter_AddToBadgerDB(t *testing.T) {
 func TestBloomFilter(t *testing.T) {
 	store, cleanupFunc := DBSetupTest(t)
 	defer cleanupFunc()
-	bf := NewBloom(0.01, 10000, store)
+	opts := &BloomOptions{
+		Err_rate: 0.01,
+		Capacity: 10000,
+		Database: store,
+		Path:     "./test.db",
+	}
+	bf := NewBloom(opts)
+
+	defer func() {
+		bf.Close()
+		os.Remove(opts.Path)
+	}()
+
 	bf.Add([]byte("foo"), []byte("bar"))
 	bf.Add([]byte("baz"), []byte("qux"))
 
