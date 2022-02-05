@@ -1,4 +1,4 @@
-module github.com/dsa0x/gobloomgo
+module github.com/dsa0x/sprout
 
 go 1.17
 

@@ -1,4 +1,4 @@
-package gobloomgo
+package sprout
 
 import (
 	"fmt"

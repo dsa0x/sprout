@@ -5,19 +5,19 @@ import (
 	"runtime"
 	"time"
 
-	"github.com/dsa0x/gobloomgo"
+	"github.com/dsa0x/sprout"
 )
 
 func main() {
 	num := 20_000_000
 	// main2(num / 10)
 	// return
-	opts := &gobloomgo.BloomOptions{
+	opts := &sprout.BloomOptions{
 		Err_rate: 0.001,
 		Path:     "bloom.db",
 		Capacity: num,
 	}
-	bf := gobloomgo.NewBloom(opts)
+	bf := sprout.NewBloom(opts)
 	defer bf.Close()
 	// return
 	start := time.Now()
@@ -33,31 +33,31 @@ func main() {
 	PrintMemUsage()
 }
 
-// Using gobloomgo with a persistent storage
+// Using sprout with a persistent storage
 func main3(num int) {
-	db := gobloomgo.NewBolt("store.db", 0600)
+	db := sprout.NewBolt("store.db", 0600)
 	defer db.Close()
 
-	opts := &gobloomgo.BloomOptions{
+	opts := &sprout.BloomOptions{
 		Err_rate: 0.001,
 		Path:     "/tmp/bloom.db",
 		Capacity: num,
 		Database: db,
 	}
 
-	bf := gobloomgo.NewBloom(opts)
+	bf := sprout.NewBloom(opts)
 	defer bf.Close()
 
 }
 
 // Scalable bloom filter
 func main2(num int) {
-	opts := &gobloomgo.BloomOptions{
+	opts := &sprout.BloomOptions{
 		Err_rate: 0.01,
 		Path:     "bloom.db",
 		Capacity: num,
 	}
-	bf := gobloomgo.NewScalableBloom(opts)
+	bf := sprout.NewScalableBloom(opts)
 	start := time.Now()
 	for i := 0; i < num*10; i++ {
 		bf.Add([]byte{byte(i)}, []byte("bar"))
