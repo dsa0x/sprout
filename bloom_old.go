@@ -4,7 +4,9 @@ import (
 	"fmt"
 	"log"
 	"math"
+	"os"
 
+	"github.com/edsrzf/mmap-go"
 	"github.com/spaolacci/murmur3"
 )
 
@@ -29,6 +31,8 @@ type BloomFilter struct {
 
 	// the bit array
 	bit_array []bool
+	memFile   *os.File
+	mem       mmap.MMap
 
 	// m is the number bits per slice(hashFn)
 	m int
@@ -79,17 +83,13 @@ func NewBloom(err_rate float64, capacity int, database Store) *BloomFilter {
 	}
 }
 
-func NewBloomFromFile(path string) {
-
-}
-
 // Add adds the key to the bloom filter
 func (bf *BloomFilter) Add(key, val []byte) {
 
 	indices := bf.candidates(string(key))
 
 	if bf.count >= bf.capacity {
-		log.Panicf("BloomFilter has reached full capacity %d", bf.capacity)
+		log.Panicf("BloomFilter has reached full capacity %d, count: %d", bf.capacity, bf.count)
 	}
 
 	for i := 0; i < len(indices); i++ {
@@ -182,4 +182,12 @@ func (bf *BloomFilter) Count() int {
 // FilterSize returns the size of the bloom filter
 func (bf *BloomFilter) FilterSize() int {
 	return bf.bit_width
+}
+
+// Close closes the file handle to the filter and the persistent store (if any)
+func (bf *BloomFilter) Close() error {
+	if bf.hasStore() {
+		return bf.db.Close()
+	}
+	return nil
 }
