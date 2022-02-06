@@ -1,10 +1,10 @@
 ### Sprout
 
-A bloom filter is a probabilistic data structure that is used to determine if an element is present in a set. Bloom filters are fast and space efficient. They allow for false positives, but mitigate the probability with an expected false positive rate. An error rate of 0.001 implies that the probability of a false positive is 1 in 1000.
+A bloom filter is a probabilistic data structure that is used to determine if an element is present in a set. Bloom filters are fast and space efficient. They allow for false positives, but mitigate the probability with an expected false positive rate. An error rate of 0.001 implies that the probability of a false positive is 1 in 1000. Bloom filters don't store the elements themselves, but instead use a set of hash functions to determine the presence of an element.
 
-To fulfil the false positive rate, bloom filters are initialized with a capacity. The capacity is the number of elements that can be inserted into the bloom filter, and this cannot be changed.
+To fulfil the false positive rate, bloom filters can be initialized with a capacity. The capacity is the number of elements that can be inserted into the bloom filter, and this cannot be changed.
 
-Sprout implements a bloom filter in Go, while using boltdb and badgerdb as optional in-memory persistent storage for the values. The bloom filter is written to a memory-mapped file.
+Sprout implements a bloom filter in Go. The bits of the filter are stored in a memory-mapped file. Sprout also allows attaching a persistent storage (boltdb and badgerdb) to store the key value pairs.
 
 Sprout also implement a scalable bloom filter described in a paper written by [P. Almeida, C.Baquero, N. Preguiça, D. Hutchison](https://haslab.uminho.pt/cbm/files/dbloom.pdf).
 
@@ -12,13 +12,14 @@ A scalable bloom filter allows you to grow the filter beyond the initial filter 
 
 ### Memory Usage
 
-Bloom filters are space efficient, as they only store the bits that are set. For a filter with a capacity of 20,000,000 and a error rate of 0.001, the storage size is approximately 34MB. That implies that there are approximately 1.78 bytes (~14 bits) per element.
+Bloom filters are space efficient, as they only store the bits that are set. For a filter with a capacity of 2,000,000 and a error rate of 0.001, the storage size is approximately 3.4MB. That implies that there are approximately 1.8 bytes (~14 bits) per element.
 The number of bits per element is as a result of the number of hash functions, which is derived from the capacity and the error rate.
 
-In comparison, adding 2 million key/value pair to a boltdb uses a storage size of about 128MB (134 bytes per pair).
+In comparison, adding 2 million elements (with a singly byte value) to a boltdb database uses a storage size of about 108MB (113 bytes per pair).
 
 **Scalable Bloom Filters**
-The scalable bloom filter initialized with a capacity of 2,000,000 and a error rate of 0.001, when grown to a capacity of 20,000,000, the total storage size is approximately 37.3MB.
+
+A scalable bloom filter initialized with a capacity of 2,000,000 and an error rate of 0.001, when grown to a capacity of 20,000,000, the total storage size is approximately 37.3MB.
 
 ### Installation
 

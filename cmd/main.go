@@ -13,7 +13,7 @@ import (
 func main() {
 	num := 20_000_00
 	// div := num / 10
-	// main5(num)
+	// main6()
 	// return
 	opts := &sprout.BloomOptions{
 		Err_rate: 0.001,
@@ -89,7 +89,7 @@ func bToMb(b uint64) uint64 {
 
 func main6() {
 	num := 2_000_000
-	db, err := bolt.Open("store1.db", 0644, nil)
+	db, err := bolt.Open("store.db", 0644, nil)
 	if err != nil {
 		panic(err)
 	}
@@ -105,7 +105,7 @@ func main6() {
 		err = db.Update(func(tx *bolt.Tx) error {
 			b := tx.Bucket([]byte("test"))
 			for j := 0; j < num/10; j++ {
-				err := b.Put([]byte(fmt.Sprintf("foo-i%d-j%d", i, j)), []byte("bar"))
+				err := b.Put([]byte(fmt.Sprintf("i%d-j%d", i, j)), []byte("b"))
 				if err != nil {
 					return err
 				}
