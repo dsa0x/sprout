@@ -91,6 +91,10 @@ func Benchmark_Boltdb(b *testing.B) {
 		fmt.Println(err)
 		return
 	}
+
+	defer func() {
+		os.Remove("test.db")
+	}()
 }
 func Benchmark_Badgerdb(b *testing.B) {
 	b.ReportAllocs()
@@ -117,4 +121,8 @@ func Benchmark_Badgerdb(b *testing.B) {
 		fmt.Println(err)
 		return
 	}
+
+	defer func() {
+		os.Remove("/tmp/test.db")
+	}()
 }

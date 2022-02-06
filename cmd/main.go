@@ -9,7 +9,7 @@ import (
 )
 
 func main() {
-	num := 20_000_000
+	num := 20_000
 	// main2(num / 10)
 	// return
 	opts := &sprout.BloomOptions{
@@ -25,7 +25,7 @@ func main() {
 
 	for i := 0; i < num-1; i++ {
 		bf.Add([]byte(fmt.Sprintf("%d", i)), []byte("bar"))
-		// fmt.Println(i+10, bf.Find([]byte(fmt.Sprintf("%d", i+1))))
+		fmt.Println(i+1, bf.Find([]byte(fmt.Sprintf("%d", i+1))))
 	}
 	fmt.Println(bf.Find([]byte("foo")))
 	fmt.Println(bf.Find([]byte("bar")))
