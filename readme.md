@@ -35,29 +35,31 @@ go get github.com/dsa0x/sprout
 
 ### Usage
 
-sprout contains implementation of both the normal and scalable bloom filter via the methods below:
+Sprout contains implementation of both the normal and scalable bloom filter via the methods below:
 
 ```go
 opts := &sprout.BloomOptions{
 		Err_rate: 0.001,
 		Capacity: 100000,
 	}
-
+// Normal Bloom Filter
 bf := sprout.NewBloom(opts)
+
+// Scalable Bloom Filter
 sbf := sprout.NewScalableBloom(opts)
 ```
 
 #### With a persistent store
 
-sprout supports boltdb and badgerdb as persistent store. Using them is very simple. sprout exposes methods that initializes the database and then they can be attached to the bloom filter
+Sprout supports boltdb and badgerdb as persistent storage. Using them is very simple. Sprout exposes methods that initializes the database and then they can be attached to the bloom filter.
 
-##### Using Boltdb
+**Using Boltdb**
 
 ```go
 // initialize boltdb
 db := sprout.NewBolt("/tmp/test.db", 0600)
 
-// you can also setup options supported by bolt to configure your store
+// the bolt store can be configured as defined in the boltdb documentations
 opts := bbolt.Options{
 		Timeout: 10 * time.Second,
 	}
@@ -70,13 +72,6 @@ opts := &sprout.BloomOptions{
 		Capacity: 100,
 	}
 bf := sprout.NewBloom(opts)
-```
-
-#### Using Scalable bloom filter
-
-```go
-// initialize badgerdb
-sbf := sprout.NewScalableBloom(sprout.DefaultOptions("/tmp/test.db"))
 ```
 
 ### Example
@@ -100,15 +95,16 @@ func main() {
 	}
 	bf := sprout.NewBloom(opts)
 	defer bf.Close()
-	bf.Add([]byte("foo"), []byte("bar"))
+	bf.Add([]byte("foo"))
 	fmt.Println(bf.Contains([]byte("foo")))
 
 	// with a persistent store
-	opts := badger.DefaultOptions("/tmp/store.db")
-	db := sprout.NewBadger(opts)
-	bf := sprout.NewScalableBloom(0.9, 100, db)
+	badgerOpts := badger.DefaultOptions("/tmp/store.db")
+	db := sprout.NewBadger(badgerOpts)
+	opts.Database = db
+	bf := sprout.NewScalableBloom(opts)
 
-	bf.Add([]byte("key"), []byte("bar"))
+	bf.Put([]byte("key"), []byte("bar"))
 	fmt.Printf("%s\n", bf.Get([]byte("key")))
 }
 ```
@@ -116,3 +112,4 @@ func main() {
 #### References
 
 1. [P. Almeida, C.Baquero, N. Preguiça, D. Hutchison](https://haslab.uminho.pt/cbm/files/dbloom.pdf)
+2. [Austin Appleby Murmur hash Source Code](https://github.com/aappleby/smhasher)
