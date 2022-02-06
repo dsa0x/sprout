@@ -38,6 +38,9 @@ type BloomFilter struct {
 	// m is the number bits per slice(hashFn)
 	m int
 
+	// k is the number of hash functions
+	k int
+
 	// one seed per hash function
 	seeds []int64
 
@@ -132,6 +135,7 @@ func NewBloom(opts *BloomOptions) *BloomFilter {
 		lock:      sync.Mutex{},
 		byteSize:  byteSize,
 		path:      opts.Path,
+		k:         numHashFn,
 	}
 }
 
@@ -207,6 +211,30 @@ func (bf *BloomFilter) Get(key []byte) []byte {
 	}
 	return val
 
+}
+
+// Merge merges the filter with another bloom filter.
+// Both filters must have the same capacity and error rate.
+// merging increases the false positive rate of the resulting filter
+func (bf *BloomFilter) Merge(bf2 *BloomFilter) error {
+	if bf.k != bf2.k {
+		return fmt.Errorf("BloomFilter k values do not match")
+	}
+	if bf.bit_width != bf2.bit_width {
+		return fmt.Errorf("BloomFilter bit_width values do not match")
+	}
+
+	bf.lock.Lock()
+	defer bf.lock.Unlock()
+
+	bf2.lock.Lock()
+	defer bf2.lock.Unlock()
+
+	for i := 0; i < bf.bit_width; i++ {
+		bf.mem[i] |= bf2.mem[i]
+	}
+
+	return nil
 }
 
 func (bf *BloomFilter) hasStore() bool {
@@ -295,6 +323,11 @@ func (bf *BloomFilter) Count() int {
 // FilterSize returns the size of the bloom filter
 func (bf *BloomFilter) FilterSize() int {
 	return bf.bit_width
+}
+
+// DB returns the underlying persistent store
+func (bf *BloomFilter) DB() interface{} {
+	return bf.db.DB()
 }
 
 // divmod returns the quotient and remainder of a/b

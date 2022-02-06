@@ -126,6 +126,63 @@ func TestBloomFilter_Add(t *testing.T) {
 		t.Errorf("Expected function to panic when there is no persistent store, got %s", val)
 	})
 }
+
+func TestBloomFilter_Merge(t *testing.T) {
+	opts := &BloomOptions{
+		Err_rate: 0.01,
+		Capacity: 1000,
+		Path:     "./test.db",
+	}
+	bf := NewBloom(opts)
+	bf2 := NewBloom(opts)
+
+	defer func() {
+		bf.Close()
+		bf2.Close()
+		os.Remove(opts.Path)
+	}()
+
+	t.Run("merge success", func(t *testing.T) {
+		err := bf.Merge(bf2)
+		if err != nil {
+			t.Errorf("Expected no error, got %v", err)
+		}
+	})
+
+	t.Run("merge should return an error when the filters dont match", func(t *testing.T) {
+		opts := &BloomOptions{
+			Err_rate: 0.01,
+			Capacity: 10000,
+			Path:     "./test.db",
+		}
+		bf2 := NewBloom(opts)
+		bf.Merge(bf2)
+		defer func() {
+			bf2.Close()
+			os.Remove(opts.Path)
+		}()
+
+		err := bf.Merge(bf2)
+		if err == nil {
+			t.Errorf("Expected error, got nil")
+		}
+	})
+
+	t.Run("object added to the single filters should be found in the resulting merge", func(t *testing.T) {
+		key, val := []byte("foo"), []byte("bar")
+		bf := NewBloom(opts)
+		bf2 := NewBloom(opts)
+		bf2.Add(key, val)
+		err := bf.Merge(bf2)
+		if err != nil {
+			t.Errorf("Expected no error, got %v", err)
+		}
+		if !bf.Contains(key) {
+			t.Errorf("Expected key %s to be found in the merged filter", string(key))
+		}
+	})
+
+}
 func TestBloomFilter_AddToDB(t *testing.T) {
 	store, cleanupFunc := DBSetupTest(t)
 	defer cleanupFunc()

@@ -92,4 +92,8 @@ func (store *BadgerStore) isReady() bool {
 	return store.db != nil
 }
 
+func (store *BadgerStore) DB() interface{} {
+	return store.db
+}
+
 var _ Store = (*BadgerStore)(nil)

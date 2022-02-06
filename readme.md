@@ -4,7 +4,7 @@ A bloom filter is a probabilistic data structure that is used to determine if an
 
 To fulfil the false positive rate, bloom filters are initialized with a capacity. The capacity is the number of elements that can be inserted into the bloom filter, and this cannot be changed.
 
-Sprout implements a bloom filter in Go, while using boltdb and badgerdb as optional in-memory persistent storage. Sprout writes the bloom filter to a memory-mapped file.
+Sprout implements a bloom filter in Go, while using boltdb and badgerdb as optional in-memory persistent storage for the values. The bloom filter is written to a memory-mapped file.
 
 Sprout also implement a scalable bloom filter described in a paper written by [P. Almeida, C.Baquero, N. Preguiça, D. Hutchison](https://haslab.uminho.pt/cbm/files/dbloom.pdf).
 

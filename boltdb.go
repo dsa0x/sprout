@@ -99,4 +99,8 @@ func (store *BoltStore) isReady() bool {
 	return store.db != nil
 }
 
+func (store *BoltStore) DB() interface{} {
+	return store.db
+}
+
 var _ Store = (*BoltStore)(nil)
