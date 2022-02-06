@@ -10,20 +10,59 @@ import (
 	"go.etcd.io/bbolt"
 )
 
-func Benchmark_NewBloom(b *testing.B) {
+func Benchmark_InitializeBloom(b *testing.B) {
 	b.ReportAllocs()
 	b.ResetTimer()
 	opts := &sprout.BloomOptions{
-		Err_rate: 0.01,
+		Err_rate: 0.001,
 		Path:     "/tmp/bloom.db",
 		Capacity: b.N,
 	}
 	bf := sprout.NewBloom(opts)
 
-	for i := 0; i < b.N; i++ {
-		bf.Add([]byte{byte(i)}, []byte("bar"))
+	defer func() {
+		bf.Close()
+		os.Remove(opts.Path)
+	}()
+
+}
+func Benchmark_NewBloom(b *testing.B) {
+	b.ReportAllocs()
+	b.ResetTimer()
+	opts := &sprout.BloomOptions{
+		Err_rate: 0.001,
+		Path:     "/tmp/bloom.db",
+		Capacity: b.N,
 	}
+	bf := sprout.NewBloom(opts)
 	n := 0
+	for i := 0; i < b.N; i++ {
+		bf.Add([]byte{byte(n)}, []byte("bar"))
+		n++
+	}
+
+	defer func() {
+		bf.Close()
+		os.Remove(opts.Path)
+	}()
+
+}
+func Benchmark_NewBloomFind(b *testing.B) {
+	b.ReportAllocs()
+	b.ResetTimer()
+	opts := &sprout.BloomOptions{
+		Err_rate: 0.001,
+		Path:     "/tmp/bloom.db",
+		Capacity: b.N,
+	}
+	bf := sprout.NewBloom(opts)
+
+	n := 0
+	for i := 0; i < b.N; i++ {
+		bf.Add([]byte{byte(n)}, []byte("bar"))
+		n++
+	}
+	n = 0
 	for i := 0; i < b.N; i++ {
 		bf.Contains([]byte{byte(n)})
 		n++
@@ -39,13 +78,20 @@ func Benchmark_NewBloom2(b *testing.B) {
 	b.ReportAllocs()
 	b.ResetTimer()
 
-	bf := sprout.NewBloom2(0.001, b.N, nil)
+	opts := &sprout.BloomOptions{
+		Err_rate: 0.001,
+		Path:     "/tmp/bloom.db",
+		Capacity: b.N,
+	}
+	bf := sprout.NewBloom2(opts)
 	defer bf.Close()
 
-	for i := 0; i < b.N; i++ {
-		bf.Add([]byte{byte(i)}, []byte("bar"))
-	}
 	n := 0
+	for i := 0; i < b.N; i++ {
+		bf.Add([]byte{byte(n)}, []byte("bar"))
+		n++
+	}
+	n = 0
 	for i := 0; i < b.N; i++ {
 		bf.Contains([]byte{byte(n)})
 		n++

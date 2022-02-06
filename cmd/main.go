@@ -2,15 +2,19 @@ package main
 
 import (
 	"fmt"
+	"log"
+	"os"
 	"runtime"
 	"time"
 
 	"github.com/dsa0x/sprout"
+	bolt "go.etcd.io/bbolt"
 )
 
 func main() {
-	num := 20_000
-	// main2(num / 10)
+	num := 20_000_000
+	// div := num / 10
+	// main2(num)
 	// return
 	opts := &sprout.BloomOptions{
 		Err_rate: 0.001,
@@ -25,7 +29,11 @@ func main() {
 
 	for i := 0; i < num-1; i++ {
 		bf.Add([]byte(fmt.Sprintf("%d", i)), []byte("bar"))
-		fmt.Println(i+1, bf.Contains([]byte(fmt.Sprintf("%d", i+1))))
+		// if i%div == 0 {
+		// 	time.Sleep(time.Second * 3)
+		// 	fmt.Println(i, "added")
+		// }
+		// fmt.Println(i+1, bf.Contains([]byte(fmt.Sprintf("%d", i+1))))
 	}
 	fmt.Println(bf.Contains([]byte("foo")))
 	fmt.Println(bf.Contains([]byte("bar")))
@@ -47,6 +55,7 @@ func main3(num int) {
 
 	bf := sprout.NewBloom(opts)
 	defer bf.Close()
+	PrintMemUsage()
 
 }
 
@@ -65,6 +74,55 @@ func main2(num int) {
 	bf.Add([]byte("foo"), []byte("bar"))
 	fmt.Println(bf.Contains([]byte("foo")))
 	fmt.Println("Added", num*10, "elements in", time.Since(start))
+}
+
+func main4(num int) {
+	db, err := bolt.Open("store.db", 0600, nil)
+	if err != nil {
+		panic(err)
+	}
+
+	err = db.Update(func(tx *bolt.Tx) error {
+		_, err := tx.CreateBucketIfNotExists([]byte("store.name"))
+		return err
+	})
+	if err != nil {
+		panic(err)
+	}
+
+	w, err := os.OpenFile("storebolt.db", os.O_RDWR|os.O_CREATE, 0600)
+	if err != nil {
+		panic(err)
+	}
+
+	// defer os.Remove("storebolt.db")
+
+	start := time.Now()
+	tx, err := db.Begin(true)
+	if err != nil {
+		panic(err)
+	}
+	defer tx.Rollback()
+	size := tx.Size()
+
+	b := tx.Bucket([]byte("store.name"))
+
+	for i := 0; i < num; i++ {
+		b.Put([]byte{byte(i)}, []byte("bar"))
+	}
+
+	// write snapshot to pipe
+	go func() {
+		defer w.Close()
+		_, err := tx.WriteTo(w)
+		if err != nil {
+			log.Println("Erroring writing to pipe", err)
+		}
+	}()
+	if err != nil {
+		panic(err)
+	}
+	fmt.Println("Added", num, "elements in", time.Since(start), "bytes=", size)
 }
 
 func PrintMemUsage() {

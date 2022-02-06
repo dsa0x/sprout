@@ -4,9 +4,7 @@ import (
 	"fmt"
 	"log"
 	"math"
-	"os"
-
-	"github.com/edsrzf/mmap-go"
+	"unsafe"
 )
 
 var ErrKeyNotFound = fmt.Errorf("Key not found")
@@ -29,9 +27,8 @@ type BloomFilter2 struct {
 	count int
 
 	// the bit array
-	bit_array []bool
-	memFile   *os.File
-	mem       mmap.MMap
+	bit_array []uint8
+	byteSize  int
 
 	// m is the number bits per slice(hashFn)
 	m int
@@ -40,28 +37,28 @@ type BloomFilter2 struct {
 	seeds []int64
 }
 
-// NewBloom creates a new bloom filter.
+// NewBloom2 creates a new bloom filter in-memory
 // err_rate is the desired false positive rate. e.g. 0.1 error rate implies 1 in 1000
 //
 // capacity is the number of entries intended to be added to the filter
 //
 // database is the persistent store to attach to the filter. can be nil.
-func NewBloom2(err_rate float64, capacity int, database Store) *BloomFilter2 {
-	if err_rate <= 0 || err_rate >= 1 {
+func NewBloom2(opts *BloomOptions) *BloomFilter2 {
+	if opts.Err_rate <= 0 || opts.Err_rate >= 1 {
 		panic("Error rate must be between 0 and 1")
 	}
-	if capacity <= 0 {
+	if opts.Capacity <= 0 {
 		panic("Capacity must be greater than 0")
 	}
 
 	// number of hash functions (k)
-	numHashFn := int(math.Ceil(math.Log2(1.0 / err_rate)))
+	numHashFn := int(math.Ceil(math.Log2(1.0 / opts.Err_rate)))
 
 	//ln22 = ln2^2
 	ln22 := math.Pow(math.Ln2, 2)
 
 	// M
-	bit_width := int((float64(capacity) * math.Abs(math.Log(err_rate)) / ln22))
+	bit_width := int((float64(opts.Capacity) * math.Abs(math.Log(opts.Err_rate)) / ln22))
 
 	//m
 	bits_per_slice := bit_width / numHashFn
@@ -71,14 +68,22 @@ func NewBloom2(err_rate float64, capacity int, database Store) *BloomFilter2 {
 		seeds[i] = int64((i + 1) << 16)
 	}
 
+	var b byte
+	byteSize := int(unsafe.Sizeof(&b))
+
+	// we only need bit_width/8 bits, but only after calculating m
+	bit_width /= byteSize
+	bit_width += byteSize // add extra 1 byte to ensure we have a full byte at the end
+
 	return &BloomFilter2{
-		err_rate:  err_rate,
-		capacity:  capacity,
+		err_rate:  opts.Err_rate,
+		capacity:  opts.Capacity,
 		bit_width: bit_width,
-		bit_array: make([]bool, bit_width),
+		bit_array: make([]uint8, bit_width),
 		m:         bits_per_slice,
 		seeds:     seeds,
-		db:        database,
+		db:        opts.Database,
+		byteSize:  byteSize,
 	}
 }
 
@@ -92,7 +97,8 @@ func (bf *BloomFilter2) Add(key, val []byte) {
 	}
 
 	for i := 0; i < len(indices); i++ {
-		bf.bit_array[indices[i]] = true
+		idx, mask := bf.getBitIndexN(indices[i])
+		bf.bit_array[idx] |= mask
 	}
 	bf.count++
 
@@ -105,7 +111,17 @@ func (bf *BloomFilter2) Add(key, val []byte) {
 // Find checks if the key exists in the bloom filter
 func (bf *BloomFilter2) Contains(key []byte) bool {
 	indices := bf.candidates(string(key))
-	return arrEvery(indices, bf.bit_array)
+
+	for i := 0; i < len(indices); i++ {
+		idx, mask := bf.getBitIndexN(indices[i])
+		bit := bf.bit_array[idx]
+
+		// check if the mask part of the bit is set
+		if bit&mask == 0 {
+			return false
+		}
+	}
+	return true
 }
 
 // Get Gets the key from the underlying persistent store
@@ -131,21 +147,18 @@ func (bf *BloomFilter2) hasStore() bool {
 	return bf.db != nil && bf.db.isReady()
 }
 
-// every checks if each index in the indices array has a value of 1 in the bit array
-func arrEvery(indices []uint64, bits []bool) bool {
-	allExists := true
-	for _, idx := range indices {
-		if !bits[idx] {
-			allExists = false
-			return allExists
-		}
-	}
-	return allExists
+// getBitIndexN returns the index and mask for the bit.
+func (bf *BloomFilter2) getBitIndexN(idx uint64) (uint64, byte) {
+	quot, rem := divmod(int64(idx), int64(bf.byteSize))
+
+	byteSizeInDec := int64(math.Pow(2, float64(bf.byteSize)-1))
+	shift := byte((byteSizeInDec >> rem)) // 128 >> 1,2..
+	return uint64(quot), shift
 }
 
 // candidates uses the hash function to return all index candidates of the given key
 func (bf *BloomFilter2) candidates(key string) []uint64 {
-	var res []uint64
+	res := make([]uint64, 0, len(bf.seeds))
 	for i, seed := range bf.seeds {
 		hash := getHash(key, seed)
 		// each hash produces an index over m for its respective slice.
