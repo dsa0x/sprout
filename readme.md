@@ -45,7 +45,12 @@ opts := bbolt.Options{
 db = sprout.NewBolt("/tmp/test.db", 0600, opts)
 defer db.Close()
 
-bf := sprout.NewBloom(0.01, 100, db)
+opts := &sprout.BloomOptions{
+		Err_rate: 0.01,
+		Path:     "bloom.db",
+		Capacity: 100,
+	}
+bf := sprout.NewBloom(opts)
 ```
 
 #### Using Scalable bloom filter
