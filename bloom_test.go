@@ -44,8 +44,8 @@ func TestBloomFilter_Add(t *testing.T) {
 	}()
 
 	t.Run("success", func(t *testing.T) {
-		key, val := []byte("foo"), []byte("var")
-		bf.Add(key, val)
+		key := []byte("foo")
+		bf.Add(key)
 	})
 
 	t.Run("count should sum up to the number of entries added", func(t *testing.T) {
@@ -65,7 +65,7 @@ func TestBloomFilter_Add(t *testing.T) {
 		for i := 0; i < count; i++ {
 			var by [4]byte
 			binary.LittleEndian.PutUint32(by[:], uint32(i))
-			bf.Add(by[:], []byte("bar"))
+			bf.Add(by[:])
 		}
 		if bf.Count() != count {
 			t.Errorf("Expected count to be %d, got %d", bf.Count(), count)
@@ -95,9 +95,9 @@ func TestBloomFilter_Add(t *testing.T) {
 		for i := 0; i < count; i++ {
 			var by [4]byte
 			binary.LittleEndian.PutUint32(by[:], uint32(i))
-			bf.Add(by[:], []byte("bar"))
+			bf.Add(by[:])
 		}
-		bf.Add([]byte("test"), []byte("bar"))
+		bf.Add([]byte("test"))
 		t.Errorf("Expected function to panic when number of entries exceed the capacity")
 	})
 
@@ -121,7 +121,7 @@ func TestBloomFilter_Add(t *testing.T) {
 			os.Remove(opts.Path)
 		}()
 
-		bf.Add([]byte("foo"), []byte("bar"))
+		bf.Put([]byte("foo"), []byte("bar"))
 		val := bf.Get([]byte("foo"))
 		t.Errorf("Expected function to panic when there is no persistent store, got %s", val)
 	})
@@ -169,10 +169,10 @@ func TestBloomFilter_Merge(t *testing.T) {
 	})
 
 	t.Run("object added to the single filters should be found in the resulting merge", func(t *testing.T) {
-		key, val := []byte("foo"), []byte("bar")
+		key := []byte("foo")
 		bf := NewBloom(opts)
 		bf2 := NewBloom(opts)
-		bf2.Add(key, val)
+		bf2.Add(key)
 		err := bf.Merge(bf2)
 		if err != nil {
 			t.Errorf("Expected no error, got %v", err)
@@ -202,7 +202,7 @@ func TestBloomFilter_AddToDB(t *testing.T) {
 
 	t.Run("success", func(t *testing.T) {
 		key, val := []byte("foo"), []byte("var")
-		bf.Add(key, val)
+		bf.Put(key, val)
 
 		if val, err := bf.db.Get([]byte(key)); err != nil || val == nil {
 			t.Errorf("bf.cache[%s] not found; error: %v", key, err)
@@ -210,7 +210,7 @@ func TestBloomFilter_AddToDB(t *testing.T) {
 	})
 	t.Run("should not find key that was not added", func(t *testing.T) {
 		key, val := []byte("foo"), []byte("var")
-		bf.Add(key, val)
+		bf.Put(key, val)
 
 		if val, err := bf.db.Get([]byte("bar")); err != nil || val != nil {
 			t.Errorf("expected value to be nil, got %s; error: %v", val, err)
@@ -234,7 +234,7 @@ func TestBloomFilter_AddToBadgerDB(t *testing.T) {
 
 	t.Run("success", func(t *testing.T) {
 		key, val := []byte("foo"), []byte("var")
-		bf.Add(key, val)
+		bf.Put(key, val)
 
 		if val, err := bf.db.Get([]byte(key)); err != nil || val == nil {
 			t.Errorf("bf.cache[%s] not found; error: %v", key, err)
@@ -242,7 +242,7 @@ func TestBloomFilter_AddToBadgerDB(t *testing.T) {
 	})
 	t.Run("should not find key that was not added", func(t *testing.T) {
 		key, val := []byte("foo"), []byte("var")
-		bf.Add(key, val)
+		bf.Put(key, val)
 
 		if val, err := bf.db.Get([]byte("bar")); err != nil || val != nil {
 			t.Errorf("expected value to be nil, got %s; error: %v", val, err)
@@ -266,10 +266,12 @@ func TestBloomFilter(t *testing.T) {
 		os.Remove(opts.Path)
 	}()
 
-	bf.Add([]byte("foo"), []byte("bar"))
-	bf.Add([]byte("baz"), []byte("qux"))
+	bf.Add([]byte("foo"))
+	bf.Add([]byte("baz"))
 
 	t.Run("key may be in cache if found in bloom, def not in cache if not found", func(t *testing.T) {
+		bf.Put([]byte("foo"), []byte("bar"))
+		bf.Put([]byte("baz"), []byte("qux"))
 		table := []struct {
 			key      string
 			expected bool

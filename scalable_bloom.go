@@ -69,11 +69,20 @@ func NewScalableBloom(opts *BloomOptions) *ScalableBloomFilter {
 
 // Add adds a key to the scalable bloom filter
 // Complexity: O(k)
-func (sbf *ScalableBloomFilter) Add(key, val []byte) {
+func (sbf *ScalableBloomFilter) Add(key []byte) {
 	if sbf.Top().count >= sbf.Top().capacity {
 		sbf.grow()
 	}
-	sbf.Top().Add(key, val)
+	sbf.Top().Add(key)
+}
+
+// Put adds a key to the scalable bloom filter, and puts the value in the database
+// Complexity: O(k)
+func (sbf *ScalableBloomFilter) Put(key, val []byte) error {
+	if sbf.Top().count >= sbf.Top().capacity {
+		sbf.grow()
+	}
+	return sbf.Top().Put(key, val)
 }
 
 // Contains checks if the key is in the bloom filter

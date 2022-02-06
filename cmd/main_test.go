@@ -37,7 +37,7 @@ func Benchmark_NewBloom(b *testing.B) {
 	bf := sprout.NewBloom(opts)
 	n := 0
 	for i := 0; i < b.N; i++ {
-		bf.Add([]byte{byte(n)}, []byte("bar"))
+		bf.Add([]byte{byte(n)})
 		n++
 	}
 
@@ -59,7 +59,7 @@ func Benchmark_NewBloomFind(b *testing.B) {
 
 	n := 0
 	for i := 0; i < b.N; i++ {
-		bf.Add([]byte{byte(n)}, []byte("bar"))
+		bf.Add([]byte{byte(n)})
 		n++
 	}
 	n = 0

@@ -3,7 +3,6 @@ package main
 import (
 	"fmt"
 	"log"
-	"os"
 	"runtime"
 	"time"
 
@@ -12,9 +11,9 @@ import (
 )
 
 func main() {
-	num := 20_000_000
+	num := 20_000_00
 	// div := num / 10
-	// main2(num)
+	// main5(num)
 	// return
 	opts := &sprout.BloomOptions{
 		Err_rate: 0.001,
@@ -23,22 +22,21 @@ func main() {
 	}
 	bf := sprout.NewBloom(opts)
 	defer bf.Close()
-	// return
-	start := time.Now()
-	bf.Add([]byte("foo"), []byte("bar"))
 
-	for i := 0; i < num-1; i++ {
-		bf.Add([]byte(fmt.Sprintf("%d", i)), []byte("bar"))
-		// if i%div == 0 {
-		// 	time.Sleep(time.Second * 3)
-		// 	fmt.Println(i, "added")
-		// }
+	// reset filter
+	bf.Clear()
+
+	start := time.Now()
+	bf.Add([]byte("foo"))
+
+	for i := 0; i < num-2; i++ {
+		bf.Add([]byte(fmt.Sprintf("%d", i)))
 		// fmt.Println(i+1, bf.Contains([]byte(fmt.Sprintf("%d", i+1))))
 	}
 	fmt.Println(bf.Contains([]byte("foo")))
 	fmt.Println(bf.Contains([]byte("bar")))
+	fmt.Printf("%+v\n", bf.Stats())
 	fmt.Printf("Added %d elements in %v\n", bf.Capacity(), time.Since(start))
-	PrintMemUsage()
 }
 
 // Using sprout with a persistent storage
@@ -69,60 +67,11 @@ func main2(num int) {
 	bf := sprout.NewScalableBloom(opts)
 	start := time.Now()
 	for i := 0; i < num*10; i++ {
-		bf.Add([]byte{byte(i)}, []byte("bar"))
+		bf.Add([]byte{byte(i)})
 	}
-	bf.Add([]byte("foo"), []byte("bar"))
+	bf.Add([]byte("foo"))
 	fmt.Println(bf.Contains([]byte("foo")))
 	fmt.Println("Added", num*10, "elements in", time.Since(start))
-}
-
-func main4(num int) {
-	db, err := bolt.Open("store.db", 0600, nil)
-	if err != nil {
-		panic(err)
-	}
-
-	err = db.Update(func(tx *bolt.Tx) error {
-		_, err := tx.CreateBucketIfNotExists([]byte("store.name"))
-		return err
-	})
-	if err != nil {
-		panic(err)
-	}
-
-	w, err := os.OpenFile("storebolt.db", os.O_RDWR|os.O_CREATE, 0600)
-	if err != nil {
-		panic(err)
-	}
-
-	// defer os.Remove("storebolt.db")
-
-	start := time.Now()
-	tx, err := db.Begin(true)
-	if err != nil {
-		panic(err)
-	}
-	defer tx.Rollback()
-	size := tx.Size()
-
-	b := tx.Bucket([]byte("store.name"))
-
-	for i := 0; i < num; i++ {
-		b.Put([]byte{byte(i)}, []byte("bar"))
-	}
-
-	// write snapshot to pipe
-	go func() {
-		defer w.Close()
-		_, err := tx.WriteTo(w)
-		if err != nil {
-			log.Println("Erroring writing to pipe", err)
-		}
-	}()
-	if err != nil {
-		panic(err)
-	}
-	fmt.Println("Added", num, "elements in", time.Since(start), "bytes=", size)
 }
 
 func PrintMemUsage() {
@@ -136,4 +85,36 @@ func PrintMemUsage() {
 
 func bToMb(b uint64) uint64 {
 	return b / 1024 / 1024
+}
+
+func main6() {
+	num := 2_000_000
+	db, err := bolt.Open("store1.db", 0644, nil)
+	if err != nil {
+		panic(err)
+	}
+	err = db.Update(func(tx *bolt.Tx) error {
+		_, err := tx.CreateBucketIfNotExists([]byte("test"))
+		return err
+	})
+	if err != nil {
+		log.Fatal(err)
+	}
+	for i := 0; i < 10; i++ {
+		fmt.Printf("Starting %d: ", i)
+		err = db.Update(func(tx *bolt.Tx) error {
+			b := tx.Bucket([]byte("test"))
+			for j := 0; j < num/10; j++ {
+				err := b.Put([]byte(fmt.Sprintf("foo-i%d-j%d", i, j)), []byte("bar"))
+				if err != nil {
+					return err
+				}
+			}
+			fmt.Printf("%+v\n", b.Stats().KeyN)
+			return nil
+		})
+		if err != nil {
+			log.Fatal(err)
+		}
+	}
 }

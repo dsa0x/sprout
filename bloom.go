@@ -45,6 +45,9 @@ type BloomFilter struct {
 	seeds []int64
 
 	path string
+
+	// candidates cache
+	cdCache map[string][]uint64
 }
 
 type BloomOptions struct {
@@ -63,8 +66,14 @@ type BloomOptions struct {
 
 	// growth rate of the bloom filter (valid values are 2 and 4)
 	GrowthRate int
+}
 
-	Scalable bool
+var DefaultBloomOptions = BloomOptions{
+	Path:       "bloom.db",
+	Err_rate:   0.001,
+	Capacity:   100000,
+	GrowthRate: 2,
+	Database:   nil,
 }
 
 // NewBloom creates a new bloom filter.
@@ -74,6 +83,9 @@ type BloomOptions struct {
 //
 // database is the persistent store to attach to the filter. can be nil.
 func NewBloom(opts *BloomOptions) *BloomFilter {
+	if opts == nil {
+		opts = &DefaultBloomOptions
+	}
 	if opts.Err_rate <= 0 || opts.Err_rate >= 1 {
 		panic("Error rate must be between 0 and 1")
 	}
@@ -140,7 +152,7 @@ func NewBloom(opts *BloomOptions) *BloomFilter {
 }
 
 // Add adds the key to the bloom filter
-func (bf *BloomFilter) Add(key, val []byte) {
+func (bf *BloomFilter) Add(key []byte) {
 	bf.lock.Lock()
 	defer bf.lock.Unlock()
 	defer func() {
@@ -165,10 +177,16 @@ func (bf *BloomFilter) Add(key, val []byte) {
 	}
 	bf.count++
 
-	if bf.hasStore() {
-		bf.db.Put([]byte(key), val)
+}
+
+// Put adds the key to the bloom filter, and also stores it in the persistent store
+func (bf *BloomFilter) Put(key, val []byte) error {
+	if !bf.hasStore() {
+		fmt.Errorf("BloomFilter does not have a store, use Add() to add keys")
 	}
 
+	bf.Add(key)
+	return bf.db.Put([]byte(key), val)
 }
 
 // Contains checks if the key exists in the bloom filter
@@ -328,6 +346,32 @@ func (bf *BloomFilter) FilterSize() int {
 // DB returns the underlying persistent store
 func (bf *BloomFilter) DB() interface{} {
 	return bf.db.DB()
+}
+
+// Clear resets all bits in the bloom filter
+func (bf *BloomFilter) Clear() {
+	bf.lock.Lock()
+	defer bf.lock.Unlock()
+	bf.mem = make([]byte, bf.bit_width)
+}
+
+type BloomFilterStats struct {
+	Capacity int
+	Count    int
+	Size     int
+	M        int
+	K        int
+}
+
+// Stats returns the stats of the bloom filter
+func (bf *BloomFilter) Stats() BloomFilterStats {
+	return BloomFilterStats{
+		Capacity: bf.capacity,
+		Count:    bf.count,
+		Size:     bf.bit_width,
+		M:        bf.m,
+		K:        bf.k,
+	}
 }
 
 // divmod returns the quotient and remainder of a/b
