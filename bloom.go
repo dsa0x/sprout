@@ -104,8 +104,6 @@ func NewBloom(opts *BloomOptions) *BloomFilter {
 		log.Fatalf("error opening file: %v", err)
 	}
 
-	f.Truncate(0)
-
 	var b byte
 	byteSize := int(unsafe.Sizeof(&b))
 
@@ -120,11 +118,6 @@ func NewBloom(opts *BloomOptions) *BloomFilter {
 	mem, err := mmap.MapRegion(f, bit_width, mmap.RDWR, 0, 0)
 	if err != nil {
 		log.Fatalf("Mmap error: %v", err)
-	}
-
-	_, err = f.WriteAt([]byte{0x0}, 0)
-	if err != nil {
-		log.Fatalf("Error writing to file: %v", err)
 	}
 
 	return &BloomFilter{
@@ -174,8 +167,8 @@ func (bf *BloomFilter) Add(key, val []byte) {
 
 }
 
-// Find checks if the key exists in the bloom filter
-func (bf *BloomFilter) Find(key []byte) bool {
+// Contains checks if the key exists in the bloom filter
+func (bf *BloomFilter) Contains(key []byte) bool {
 	defer func() {
 		if r := recover(); r != nil {
 			log.Panicf("Error finding key: %v", r)
@@ -200,10 +193,10 @@ func (bf *BloomFilter) Find(key []byte) bool {
 // Get gets the key from the underlying persistent store
 func (bf *BloomFilter) Get(key []byte) []byte {
 	if !bf.hasStore() {
-		log.Panicf("BloomFilter has no persistent store. Use Find() instead")
+		log.Panicf("BloomFilter has no persistent store. Use Contains() instead")
 	}
 
-	if !bf.Find(key) {
+	if !bf.Contains(key) {
 		return nil
 	}
 

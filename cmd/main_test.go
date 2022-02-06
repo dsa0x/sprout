@@ -25,7 +25,7 @@ func Benchmark_NewBloom(b *testing.B) {
 	}
 	n := 0
 	for i := 0; i < b.N; i++ {
-		bf.Find([]byte{byte(n)})
+		bf.Contains([]byte{byte(n)})
 		n++
 	}
 
@@ -47,7 +47,7 @@ func Benchmark_NewBloom2(b *testing.B) {
 	}
 	n := 0
 	for i := 0; i < b.N; i++ {
-		bf.Find([]byte{byte(n)})
+		bf.Contains([]byte{byte(n)})
 		n++
 	}
 

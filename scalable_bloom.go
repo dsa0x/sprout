@@ -76,11 +76,11 @@ func (sbf *ScalableBloomFilter) Add(key, val []byte) {
 	sbf.Top().Add(key, val)
 }
 
-// Find checks if the key is in the bloom filter
+// Contains checks if the key is in the bloom filter
 // Complexity: O(k*n)
-func (sbf *ScalableBloomFilter) Find(key []byte) bool {
+func (sbf *ScalableBloomFilter) Contains(key []byte) bool {
 	for _, filter := range sbf.filters {
-		if filter.Find(key) {
+		if filter.Contains(key) {
 			return true
 		}
 	}
@@ -89,7 +89,7 @@ func (sbf *ScalableBloomFilter) Find(key []byte) bool {
 
 func (sbf *ScalableBloomFilter) Get(key []byte) []byte {
 	for _, filter := range sbf.filters {
-		if filter.Find(key) {
+		if filter.Contains(key) {
 			return filter.Get(key)
 		}
 	}

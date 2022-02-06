@@ -224,7 +224,7 @@ func TestBloomFilter(t *testing.T) {
 		}
 
 		for _, tt := range table {
-			found := bf.Find([]byte(tt.key))
+			found := bf.Contains([]byte(tt.key))
 			if !found {
 				val, err := bf.db.Get([]byte(tt.key))
 				if err != nil {

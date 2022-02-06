@@ -103,7 +103,7 @@ func (bf *BloomFilter2) Add(key, val []byte) {
 }
 
 // Find checks if the key exists in the bloom filter
-func (bf *BloomFilter2) Find(key []byte) bool {
+func (bf *BloomFilter2) Contains(key []byte) bool {
 	indices := bf.candidates(string(key))
 	return arrEvery(indices, bf.bit_array)
 }
@@ -111,10 +111,10 @@ func (bf *BloomFilter2) Find(key []byte) bool {
 // Get Gets the key from the underlying persistent store
 func (bf *BloomFilter2) Get(key []byte) []byte {
 	if !bf.hasStore() {
-		log.Panicf("BloomFilter2 has no persistent store. Use Find() instead")
+		log.Panicf("BloomFilter2 has no persistent store. Use Contains() instead")
 	}
 
-	if !bf.Find(key) {
+	if !bf.Contains(key) {
 		return nil
 	}
 
