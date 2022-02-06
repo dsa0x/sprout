@@ -1,6 +1,7 @@
-package gobloomgo
+package sprout
 
 import (
+	"fmt"
 	"math"
 )
 
@@ -19,6 +20,8 @@ type ScalableBloomFilter struct {
 
 	// growth rate is the rate at which the capacity of the bloom filter grows
 	growth_rate GrowthRate
+
+	path string
 }
 
 type GrowthRate uint
@@ -31,32 +34,36 @@ var (
 )
 
 // NewScalableBloom creates a new scalable bloom filter.
-// err_rate is the desired false positive rate. e.g. 0.1 error rate implies 1 in 1000
+// err_rate is the desired error rate.
 // initial_capacity is the initial capacity of the bloom filter. When the number
 // of items exceed the initial capacity, a new filter is created.
 //
 // The growth rate defaults to 2.
-func NewScalableBloom(err_rate float64, initial_capacity int, database Store, growth_rate ...GrowthRate) *ScalableBloomFilter {
-	if err_rate <= 0 || err_rate >= 1 {
+func NewScalableBloom(opts *BloomOptions) *ScalableBloomFilter {
+	if opts.Err_rate <= 0 || opts.Err_rate >= 1 {
 		panic("Error rate must be between 0 and 1")
 	}
-	if initial_capacity < 0 {
+	if opts.Capacity < 0 {
 		panic("Initial capacity must be greater than 0")
 	}
-	_growth_rate := GrowthRateSmall
-	if len(growth_rate) > 0 {
-		_growth_rate = growth_rate[0]
+	if opts.GrowthRate == 0 {
+		opts.GrowthRate = int(GrowthRateSmall)
 	}
 
-	initialFilter := NewBloom(err_rate, initial_capacity, database)
+	if opts.Path == "" {
+		opts.Path = "/tmp/bloom.db"
+	}
+
+	initialFilter := NewBloom(opts)
 	return &ScalableBloomFilter{
-		err_rate:    err_rate,
-		capacity:    initial_capacity,
-		growth_rate: _growth_rate,
+		err_rate:    opts.Err_rate,
+		capacity:    opts.Capacity,
+		growth_rate: GrowthRate(opts.GrowthRate),
 		ratio:       0.9, // Source: [1]
 		m0:          initialFilter.m,
 		filters:     []*BloomFilter{initialFilter},
-		db:          database,
+		db:          opts.Database,
+		path:        opts.Path,
 	}
 }
 
@@ -69,11 +76,11 @@ func (sbf *ScalableBloomFilter) Add(key, val []byte) {
 	sbf.Top().Add(key, val)
 }
 
-// Find checks if the key is in the bloom filter
+// Contains checks if the key is in the bloom filter
 // Complexity: O(k*n)
-func (sbf *ScalableBloomFilter) Find(key []byte) bool {
+func (sbf *ScalableBloomFilter) Contains(key []byte) bool {
 	for _, filter := range sbf.filters {
-		if filter.Find(key) {
+		if filter.Contains(key) {
 			return true
 		}
 	}
@@ -82,7 +89,7 @@ func (sbf *ScalableBloomFilter) Find(key []byte) bool {
 
 func (sbf *ScalableBloomFilter) Get(key []byte) []byte {
 	for _, filter := range sbf.filters {
-		if filter.Find(key) {
+		if filter.Contains(key) {
 			return filter.Get(key)
 		}
 	}
@@ -98,7 +105,13 @@ func (sbf *ScalableBloomFilter) Top() *BloomFilter {
 func (sbf *ScalableBloomFilter) grow() {
 	err_rate := sbf.err_rate * math.Pow(sbf.ratio, float64(len(sbf.filters)))
 	newCapacity := sbf.getNewCap()
-	newFilter := NewBloom(err_rate, newCapacity, sbf.db)
+	opts := &BloomOptions{
+		Err_rate: err_rate,
+		Capacity: newCapacity,
+		Database: sbf.db,
+		Path:     sbf.path + fmt.Sprint(len(sbf.filters)),
+	}
+	newFilter := NewBloom(opts)
 	sbf.filters = append(sbf.filters, newFilter)
 }
 

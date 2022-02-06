@@ -1,35 +1,81 @@
 package main
 
 import (
-	"encoding/binary"
 	"fmt"
+	"runtime"
+	"time"
 
-	"github.com/dsa0x/gobloomgo"
+	"github.com/dsa0x/sprout"
 )
 
 func main() {
-
-	// opts := bbolt.Options{
-	// 	Timeout: 10 * time.Second,
-	// }
-	// db := gobloomgo.NewBolt("/tmp/test.db", 0600, opts)
-	// defer db.Close()
-
-	// opts := badger.DefaultOptions("/tmp/bloom.db")
-	// db := gobloomgo.NewBadger(opts)
-
-	num := 18232
-	// bf := gobloomgo.NewBloom(0.1, 50000, nil)
-	bf := gobloomgo.NewScalableBloom(0.001, num, nil)
-
-	for i := 0; i < num; i++ {
-		var by [4]byte
-		binary.LittleEndian.PutUint32(by[:], uint32(i))
-		bf.Add(by[:], []byte("bar"))
+	num := 20_000
+	// main2(num / 10)
+	// return
+	opts := &sprout.BloomOptions{
+		Err_rate: 0.001,
+		Path:     "bloom.db",
+		Capacity: num,
 	}
-	bf.Add([]byte("foo"), []byte("var"))
+	bf := sprout.NewBloom(opts)
+	defer bf.Close()
+	// return
+	start := time.Now()
+	bf.Add([]byte("foo"), []byte("bar"))
 
-	fmt.Printf("Count: %d, Capacity: %d,\n", bf.Count(), bf.Capacity())
-	// fmt.Println(bf.Capacity(), bf.ExpCapacity(), bf.Count(), bf.Prob())
+	for i := 0; i < num-1; i++ {
+		bf.Add([]byte(fmt.Sprintf("%d", i)), []byte("bar"))
+		fmt.Println(i+1, bf.Contains([]byte(fmt.Sprintf("%d", i+1))))
+	}
+	fmt.Println(bf.Contains([]byte("foo")))
+	fmt.Println(bf.Contains([]byte("bar")))
+	fmt.Printf("Added %d elements in %v\n", bf.Capacity(), time.Since(start))
+	PrintMemUsage()
+}
 
+// Using sprout with a persistent storage
+func main3(num int) {
+	db := sprout.NewBolt("store.db", 0600)
+	defer db.Close()
+
+	opts := &sprout.BloomOptions{
+		Err_rate: 0.001,
+		Path:     "/tmp/bloom.db",
+		Capacity: num,
+		Database: db,
+	}
+
+	bf := sprout.NewBloom(opts)
+	defer bf.Close()
+
+}
+
+// Scalable bloom filter
+func main2(num int) {
+	opts := &sprout.BloomOptions{
+		Err_rate: 0.01,
+		Path:     "bloom.db",
+		Capacity: num,
+	}
+	bf := sprout.NewScalableBloom(opts)
+	start := time.Now()
+	for i := 0; i < num*10; i++ {
+		bf.Add([]byte{byte(i)}, []byte("bar"))
+	}
+	bf.Add([]byte("foo"), []byte("bar"))
+	fmt.Println(bf.Contains([]byte("foo")))
+	fmt.Println("Added", num*10, "elements in", time.Since(start))
+}
+
+func PrintMemUsage() {
+	var m runtime.MemStats
+	runtime.ReadMemStats(&m)
+	fmt.Printf("Alloc = %v MiB", bToMb(m.Alloc))
+	fmt.Printf("\tTotalAlloc = %v MiB", bToMb(m.TotalAlloc))
+	fmt.Printf("\tSys = %v MiB", bToMb(m.Sys))
+	fmt.Printf("\tNumGC = %v\n", m.NumGC)
+}
+
+func bToMb(b uint64) uint64 {
+	return b / 1024 / 1024
 }

@@ -1,14 +1,16 @@
-package gobloomgo
+package sprout
 
 import (
 	"fmt"
 	"log"
 	"math"
+	"os"
+	"sync"
+	"unsafe"
 
-	"github.com/spaolacci/murmur3"
+	"github.com/dsa0x/sprout/pkg/murmur"
+	"github.com/edsrzf/mmap-go"
 )
-
-var ErrKeyNotFound = fmt.Errorf("Key not found")
 
 type BloomFilter struct {
 
@@ -27,64 +29,122 @@ type BloomFilter struct {
 	// the number of items added to the bloom filter
 	count int
 
-	// the bit array
-	bit_array []bool
+	memFile    *os.File
+	mem        mmap.MMap
+	pageOffset int
+	lock       sync.Mutex
+	byteSize   int
 
 	// m is the number bits per slice(hashFn)
 	m int
 
 	// one seed per hash function
 	seeds []int64
+
+	path string
+}
+
+type BloomOptions struct {
+
+	// path to the filter
+	Path string
+
+	// The desired false positive rate
+	Err_rate float64
+
+	// the number of items intended to be added to the bloom filter (n)
+	Capacity int
+
+	// persistent storage
+	Database Store
+
+	// growth rate of the bloom filter (valid values are 2 and 4)
+	GrowthRate int
+
+	Scalable bool
 }
 
 // NewBloom creates a new bloom filter.
-// err_rate is the desired false positive rate. e.g. 0.1 error rate implies 1 in 1000
+// err_rate is the desired false error rate. e.g. 0.001 implies 1 in 1000
 //
 // capacity is the number of entries intended to be added to the filter
 //
 // database is the persistent store to attach to the filter. can be nil.
-func NewBloom(err_rate float64, capacity int, database Store) *BloomFilter {
-	if err_rate <= 0 || err_rate >= 1 {
+func NewBloom(opts *BloomOptions) *BloomFilter {
+	if opts.Err_rate <= 0 || opts.Err_rate >= 1 {
 		panic("Error rate must be between 0 and 1")
 	}
-	if capacity <= 0 {
+	if opts.Capacity <= 0 {
 		panic("Capacity must be greater than 0")
 	}
 
 	// number of hash functions (k)
-	numHashFn := int(math.Ceil(math.Log2(1.0 / err_rate)))
+	numHashFn := int(math.Ceil(math.Log2(1.0 / opts.Err_rate)))
 
 	//ln22 = ln2^2
 	ln22 := math.Pow(math.Ln2, 2)
 
 	// M
-	bit_width := int((float64(capacity) * math.Abs(math.Log(err_rate)) / ln22))
+	bit_width := int((float64(opts.Capacity) * math.Abs(math.Log(opts.Err_rate)) / ln22))
 
 	//m
 	bits_per_slice := bit_width / numHashFn
 
 	seeds := make([]int64, numHashFn)
 	for i := 0; i < len(seeds); i++ {
-		seeds[i] = int64((i + 1) << 16)
+		seeds[i] = 64 << int64((i + 1))
+	}
+
+	if opts.Path == "" {
+		opts.Path = "/tmp/bloom.db"
+	}
+
+	f, err := os.OpenFile(opts.Path, os.O_RDWR|os.O_CREATE, 0644)
+	if err != nil {
+		log.Fatalf("error opening file: %v", err)
+	}
+
+	var b byte
+	byteSize := int(unsafe.Sizeof(&b))
+
+	// we only need bit_width/8 bits, but only after calculating m
+	bit_width /= byteSize
+	bit_width += byteSize // add extra 1 byte to ensure we have a full byte at the end
+
+	if err := f.Truncate(int64(bit_width)); err != nil {
+		log.Fatalf("Error truncating file: %s", err)
+	}
+
+	mem, err := mmap.MapRegion(f, bit_width, mmap.RDWR, 0, 0)
+	if err != nil {
+		log.Fatalf("Mmap error: %v", err)
 	}
 
 	return &BloomFilter{
-		err_rate:  err_rate,
-		capacity:  capacity,
+		err_rate:  opts.Err_rate,
+		capacity:  opts.Capacity,
 		bit_width: bit_width,
-		bit_array: make([]bool, bit_width),
+		memFile:   f,
+		mem:       mem,
 		m:         bits_per_slice,
 		seeds:     seeds,
-		db:        database,
+		db:        opts.Database,
+		lock:      sync.Mutex{},
+		byteSize:  byteSize,
+		path:      opts.Path,
 	}
-}
-
-func NewBloomFromFile(path string) {
-
 }
 
 // Add adds the key to the bloom filter
 func (bf *BloomFilter) Add(key, val []byte) {
+	bf.lock.Lock()
+	defer bf.lock.Unlock()
+	defer func() {
+		if r := recover(); r != nil {
+			log.Panicf("Error adding key %s: %v", key, r)
+			// os.Exit(1)
+		}
+	}()
 
 	indices := bf.candidates(string(key))
 
@@ -93,7 +153,11 @@ func (bf *BloomFilter) Add(key, val []byte) {
 	}
 
 	for i := 0; i < len(indices); i++ {
-		bf.bit_array[indices[i]] = true
+		idx, mask := bf.getBitIndexN(indices[i])
+
+		// set the bit at mask position of the byte at idx
+		// e.g. if idx = 2 and mask = 01000000, set the bit at 2nd position of byte 2
+		bf.mem[idx] |= mask
 	}
 	bf.count++
 
@@ -103,19 +167,36 @@ func (bf *BloomFilter) Add(key, val []byte) {
 
 }
 
-// Find checks if the key exists in the bloom filter
-func (bf *BloomFilter) Find(key []byte) bool {
+// Contains checks if the key exists in the bloom filter
+func (bf *BloomFilter) Contains(key []byte) bool {
+	defer func() {
+		if r := recover(); r != nil {
+			log.Panicf("Error finding key: %v", r)
+			// os.Exit(1)
+		}
+	}()
+
 	indices := bf.candidates(string(key))
-	return arrEvery(indices, bf.bit_array)
+
+	for i := 0; i < len(indices); i++ {
+		idx, mask := bf.getBitIndexN(indices[i])
+		bit := bf.mem[idx]
+
+		// check if the mask part of the bit is set
+		if bit&mask == 0 {
+			return false
+		}
+	}
+	return true
 }
 
-// Get Gets the key from the underlying persistent store
+// Get gets the key from the underlying persistent store
 func (bf *BloomFilter) Get(key []byte) []byte {
 	if !bf.hasStore() {
-		log.Panicf("BloomFilter has no persistent store. Use Find() instead")
+		log.Panicf("BloomFilter has no persistent store. Use Contains() instead")
 	}
 
-	if !bf.Find(key) {
+	if !bf.Contains(key) {
 		return nil
 	}
 
@@ -132,21 +213,39 @@ func (bf *BloomFilter) hasStore() bool {
 	return bf.db != nil && bf.db.isReady()
 }
 
-// every checks if each index in the indices array has a value of 1 in the bit array
-func arrEvery(indices []uint64, bits []bool) bool {
-	allExists := true
-	for _, idx := range indices {
-		if !bits[idx] {
-			allExists = false
-			return allExists
-		}
+// getBitIndex returns the index and mask for the bit. (unused)
+//
+// The first half of the bits are set at the beginning of the byte,
+// the second half at the end
+func (bf *BloomFilter) getBitIndex(idx uint64) (uint64, byte) {
+	denom := uint64(bf.bit_width) / 2
+	var mask byte
+	if idx >= denom {
+		mask = 0x0F // 00001111
+		idx = idx % denom
+	} else {
+		mask = 0xF0 // 11110000
 	}
-	return allExists
+	return idx, mask
 }
 
-// candidates uses the hash function to return all index candidates of the given key
+// getBitIndexN returns the index and mask for the bit.
+func (bf *BloomFilter) getBitIndexN(idx uint64) (uint64, byte) {
+	quot, rem := divmod(int64(idx), int64(bf.byteSize))
+
+	// shift the mask to the right by the remainder to get the bit index in the byte
+	// if byteSize = 8,
+	// 128 = 0x80 = 1000 0000, 128 >> 2 = 64.....and so on
+	// 1000 0000 >> 2 = 0100 0000
+	byteSizeInDec := int64(math.Pow(2, float64(bf.byteSize)-1))
+	shift := byte((byteSizeInDec >> rem)) // 128 >> 1,2..
+
+	return uint64(quot), shift
+}
+
+// candidates uses the hash function to get all index candidates of the given key
 func (bf *BloomFilter) candidates(key string) []uint64 {
-	var res []uint64
+	res := make([]uint64, 0, len(bf.seeds))
 	for i, seed := range bf.seeds {
 		hash := getHash(key, seed)
 		// each hash produces an index over m for its respective slice.
@@ -159,9 +258,8 @@ func (bf *BloomFilter) candidates(key string) []uint64 {
 
 // getHash returns the non-cryptographic murmur hash of the key seeded with the given seed
 func getHash(key string, seed int64) uint64 {
-	hasher := murmur3.New64WithSeed(uint32(seed))
-	hasher.Write([]byte(key))
-	return hasher.Sum64()
+	hash := murmur.Murmur3_64([]byte(key), uint64(seed))
+	return hash
 }
 
 // getBucketIndex returns the index of the bucket where the hash falls in
@@ -174,6 +272,21 @@ func (bf *BloomFilter) Capacity() int {
 	return bf.capacity
 }
 
+// Close closes the file handle to the filter and the persistent store (if any)
+func (bf *BloomFilter) Close() error {
+	if err := bf.mem.Flush(); err != nil {
+		_ = bf.memFile.Close()
+		return err
+	}
+
+	if err := bf.mem.Unmap(); err != nil {
+		_ = bf.memFile.Close()
+		return err
+	}
+
+	return bf.memFile.Close()
+}
+
 // Count returns the number of items added to the bloom filter
 func (bf *BloomFilter) Count() int {
 	return bf.count
@@ -182,4 +295,11 @@ func (bf *BloomFilter) Count() int {
 // FilterSize returns the size of the bloom filter
 func (bf *BloomFilter) FilterSize() int {
 	return bf.bit_width
+}
+
+// divmod returns the quotient and remainder of a/b
+func divmod(num, denom int64) (quot, rem int64) {
+	quot = num / denom
+	rem = num % denom
+	return
 }
