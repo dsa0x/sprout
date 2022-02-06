@@ -6,6 +6,7 @@ import (
 	"runtime"
 	"time"
 
+	"github.com/dgraph-io/badger/v3"
 	"github.com/dsa0x/sprout"
 	bolt "go.etcd.io/bbolt"
 )
@@ -13,7 +14,7 @@ import (
 func main() {
 	num := 20_000_00
 	// div := num / 10
-	// main6()
+	// main7()
 	// return
 	opts := &sprout.BloomOptions{
 		Err_rate: 0.001,
@@ -116,5 +117,38 @@ func main6() {
 		if err != nil {
 			log.Fatal(err)
 		}
+	}
+}
+func main7() {
+	num := 2_000_000
+	db, err := badger.Open(badger.DefaultOptions("badgerstore.db"))
+	if err != nil {
+		panic(err)
+	}
+	err = db.Update(func(tx *badger.Txn) error {
+		for i := 0; i < num; i++ {
+			err := tx.Set([]byte(fmt.Sprintf("i%d-j", i)), []byte("b"))
+			if err != nil {
+				return err
+			}
+		}
+		return err
+	})
+	for i := 0; i < 100; i++ {
+		err = db.Update(func(tx *badger.Txn) error {
+			for j := 0; j < num/100; j++ {
+				err := tx.Set([]byte(fmt.Sprintf("i%d-j%d", i, j)), []byte("b"))
+				if err != nil {
+					return err
+				}
+			}
+			return nil
+		})
+		if err != nil {
+			break
+		}
+	}
+	if err != nil {
+		log.Fatal(err)
 	}
 }
