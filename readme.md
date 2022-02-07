@@ -26,7 +26,7 @@ Adding 2 million elements (with a single byte value)
 | BoltDB       | 108MB |
 | BadgerDB     | 128MB |
 | Sprout       | 3.4MB |
-| Sprout (Sbf) | 3.4MB |
+| Sprout (Sbf) | 4.3MB |
 
 ### Installation
 
