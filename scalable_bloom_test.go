@@ -2,6 +2,7 @@ package sprout
 
 import (
 	"fmt"
+	"os"
 	"testing"
 )
 
@@ -74,4 +75,51 @@ func TestScalableBloomFilter_GrowFilter(t *testing.T) {
 			t.Errorf("expected sbf.capacity to be greater than %d; got %d", 1000, sbf.Capacity())
 		}
 	})
+}
+
+func Test_CompareBFnSBF(t *testing.T) {
+	store, cleanupFunc := DBSetupTest(t)
+	defer cleanupFunc()
+	initialCap := 1000
+	opts := &BloomOptions{
+		Err_rate: 0.01,
+		Capacity: initialCap,
+		Database: store,
+		Path:     "./test.db",
+	}
+	sbf := NewScalableBloom(opts)
+	opts2 := &BloomOptions{
+		Err_rate: 0.01,
+		Capacity: initialCap,
+		Database: store,
+		Path:     "./test2.db",
+	}
+	bf := NewBloom(opts2)
+
+	t.Run("bf and a sbf that hasnt been scaled should have the same width", func(t *testing.T) {
+
+		for i := 0; i < initialCap; i++ {
+			sbf.Add([]byte(fmt.Sprintf("foo%d", i)))
+			bf.Add([]byte(fmt.Sprintf("foo%d", i)))
+		}
+
+		if bf.bit_width != sbf.Top().bit_width {
+			t.Errorf("expected bf and sbf to have the same bit_width; got %d and %d", bf.bit_width, sbf.Top().bit_width)
+		}
+		if len(bf.mem) != len(sbf.Top().mem) {
+			t.Errorf("expected bf and sbf to have the same bit_width; got %d and %d", bf.bit_width, sbf.Top().bit_width)
+		}
+
+		for i := initialCap; i < initialCap*2; i++ {
+			sbf.Add([]byte(fmt.Sprintf("foo%d", i)))
+		}
+		if len(bf.mem) >= len(sbf.Top().mem) {
+			t.Errorf("expected sbf to have more memory; got bf: %d and sbf:%d", len(bf.mem), len(sbf.Top().mem))
+		}
+	})
+
+	defer func() {
+		os.Remove("./test.db")
+		os.Remove("./test2.db")
+	}()
 }

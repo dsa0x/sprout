@@ -45,11 +45,9 @@ type BloomFilter struct {
 	seeds []int64
 
 	path string
-
-	// candidates cache
-	cdCache map[string][]uint64
 }
 
+// BloomOptions is the options for creating a new bloom filter
 type BloomOptions struct {
 
 	// path to the filter
@@ -65,7 +63,9 @@ type BloomOptions struct {
 	Database Store
 
 	// growth rate of the bloom filter (valid values are 2 and 4)
-	GrowthRate int
+	GrowthRate GrowthRate
+
+	dataSize int
 }
 
 var DefaultBloomOptions = BloomOptions{
@@ -126,28 +126,32 @@ func NewBloom(opts *BloomOptions) *BloomFilter {
 	bit_width /= byteSize
 	bit_width += byteSize // add extra 1 byte to ensure we have a full byte at the end
 
-	if err := f.Truncate(int64(bit_width)); err != nil {
+	pageOffset := opts.dataSize
+	opts.dataSize += bit_width
+
+	if err := f.Truncate(int64(opts.dataSize)); err != nil {
 		log.Fatalf("Error truncating file: %s", err)
 	}
 
-	mem, err := mmap.MapRegion(f, bit_width, mmap.RDWR, 0, 0)
+	mem, err := mmap.MapRegion(f, opts.dataSize, mmap.RDWR, 0, 0)
 	if err != nil {
 		log.Fatalf("Mmap error: %v", err)
 	}
 
 	return &BloomFilter{
-		err_rate:  opts.Err_rate,
-		capacity:  opts.Capacity,
-		bit_width: bit_width,
-		memFile:   f,
-		mem:       mem,
-		m:         bits_per_slice,
-		seeds:     seeds,
-		db:        opts.Database,
-		lock:      sync.Mutex{},
-		byteSize:  byteSize,
-		path:      opts.Path,
-		k:         numHashFn,
+		err_rate:   opts.Err_rate,
+		capacity:   opts.Capacity,
+		bit_width:  bit_width,
+		memFile:    f,
+		mem:        mem,
+		m:          bits_per_slice,
+		seeds:      seeds,
+		db:         opts.Database,
+		lock:       sync.Mutex{},
+		byteSize:   byteSize,
+		path:       opts.Path,
+		k:          numHashFn,
+		pageOffset: pageOffset,
 	}
 }
 
@@ -155,12 +159,6 @@ func NewBloom(opts *BloomOptions) *BloomFilter {
 func (bf *BloomFilter) Add(key []byte) {
 	bf.lock.Lock()
 	defer bf.lock.Unlock()
-	defer func() {
-		if r := recover(); r != nil {
-			log.Panicf("Error adding key %s: %v", key, r)
-			// os.Exit(1)
-		}
-	}()
 
 	indices := bf.candidates(string(key))
 
@@ -170,6 +168,10 @@ func (bf *BloomFilter) Add(key []byte) {
 
 	for i := 0; i < len(indices); i++ {
 		idx, mask := bf.getBitIndexN(indices[i])
+
+		if int(idx) >= len(bf.mem) {
+			panic("Error finding key: Index out of bounds")
+		}
 
 		// set the bit at mask position of the byte at idx
 		// e.g. if idx = 2 and mask = 01000000, set the bit at 2nd position of byte 2
@@ -191,17 +193,14 @@ func (bf *BloomFilter) Put(key, val []byte) error {
 
 // Contains checks if the key exists in the bloom filter
 func (bf *BloomFilter) Contains(key []byte) bool {
-	defer func() {
-		if r := recover(); r != nil {
-			log.Panicf("Error finding key: %v", r)
-			// os.Exit(1)
-		}
-	}()
-
 	indices := bf.candidates(string(key))
 
 	for i := 0; i < len(indices); i++ {
 		idx, mask := bf.getBitIndexN(indices[i])
+
+		if int(idx) >= len(bf.mem) {
+			panic("Error finding key: Index out of bounds")
+		}
 		bit := bf.mem[idx]
 
 		// check if the mask part of the bit is set
@@ -257,6 +256,21 @@ func (bf *BloomFilter) Merge(bf2 *BloomFilter) error {
 
 func (bf *BloomFilter) hasStore() bool {
 	return bf.db != nil && bf.db.isReady()
+}
+
+func (bf *BloomFilter) unmap() error {
+	var err error
+	if bf.mem != nil {
+		err = bf.mem.Unmap()
+		if err != nil {
+			_ = bf.memFile.Close()
+			return err
+		}
+	}
+	if bf.memFile != nil {
+		return bf.memFile.Close()
+	}
+	return nil
 }
 
 // getBitIndex returns the index and mask for the bit. (unused)
