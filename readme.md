@@ -12,20 +12,21 @@ A scalable bloom filter allows you to grow the filter beyond the initial filter 
 
 ### Storage Size
 
-Bloom filters are space efficient, as they only store the bits that are set. For a filter with a capacity of 2,000,000 and a error rate of 0.001, the storage size is approximately 3.4MB. That implies that there are approximately 1.8 bytes (~14 bits) per element.
+Bloom filters are space efficient, as they only store the bits returned from the hash function. For a filter with a capacity of 2,000,000 and a error rate of 0.001, the storage size is approximately 3.4MB. That implies that there are approximately 1.8 bytes (~14 bits) per element.
 The number of bits per element is as a result of the number of hash functions, which is derived from the capacity and the error rate.
 
-**Scalable Bloom Filters**: A scalable bloom filter initialized with a capacity of 2,000,000 and an error rate of 0.001, when grown to a capacity of 20,000,000, the total storage size is approximately 37.3MB.
+**Scalable Bloom Filters**: A scalable bloom filter initialized with a capacity of 200,000 and an error rate of 0.001, when grown to a capacity of 2,000,000, the total storage size is approximately 4.3MB.
 
 **Comparison to Key-Value stores**
 
 Adding 2 million elements (with a single byte value)
 
-| Database | Size  |
-| -------- | ----- |
-| BoltDB   | 108MB |
-| BadgerDB | 128MB |
-| Sprout   | 3.4MB |
+| Database     | Size  |
+| ------------ | ----- |
+| BoltDB       | 108MB |
+| BadgerDB     | 128MB |
+| Sprout       | 3.4MB |
+| Sprout (Sbf) | 4.3MB |
 
 ### Installation
 

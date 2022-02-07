@@ -74,6 +74,59 @@ func Benchmark_NewBloomFind(b *testing.B) {
 	}()
 
 }
+func Benchmark_NewScalableBloom(b *testing.B) {
+	b.ReportAllocs()
+	b.ResetTimer()
+
+	if b.N < 0 {
+		return
+	}
+
+	opts := &sprout.BloomOptions{
+		Err_rate: 0.001,
+		Path:     "/tmp/bloom.db",
+		Capacity: b.N,
+	}
+	bf := sprout.NewScalableBloom(opts)
+	n := 0
+	for i := 0; i < b.N*5; i++ {
+		bf.Add([]byte{byte(n)})
+		n++
+	}
+
+	defer func() {
+		bf.Close()
+		os.Remove(opts.Path)
+	}()
+
+}
+func Benchmark_NewScalableBloomFind(b *testing.B) {
+	b.ReportAllocs()
+	b.ResetTimer()
+	opts := &sprout.BloomOptions{
+		Err_rate: 0.001,
+		Path:     "/tmp/bloom.db",
+		Capacity: b.N,
+	}
+	bf := sprout.NewScalableBloom(opts)
+
+	n := 0
+	for i := 0; i < b.N; i++ {
+		bf.Add([]byte{byte(n)})
+		n++
+	}
+	n = 0
+	for i := 0; i < b.N; i++ {
+		bf.Contains([]byte{byte(n)})
+		n++
+	}
+
+	defer func() {
+		bf.Close()
+		os.Remove(opts.Path)
+	}()
+
+}
 func Benchmark_NewBloom2(b *testing.B) {
 	b.ReportAllocs()
 	b.ResetTimer()
