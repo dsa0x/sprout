@@ -375,6 +375,9 @@ type BloomFilterStats struct {
 	Size     int
 	M        int
 	K        int
+
+	// Prob is the error probability of the filter
+	Prob float64
 }
 
 // Stats returns the stats of the bloom filter
@@ -385,6 +388,7 @@ func (bf *BloomFilter) Stats() BloomFilterStats {
 		Size:     bf.bit_width,
 		M:        bf.m,
 		K:        bf.k,
+		Prob:     bf.err_rate,
 	}
 }
 

@@ -13,9 +13,12 @@ import (
 
 func main() {
 	num := 20_000_00
-	// div := num / 10
-	// main2(num)
-	// return
+	// main1(num)
+	main2(num)
+}
+
+// Normal bloom filter
+func main1(num int) {
 	opts := &sprout.BloomOptions{
 		Err_rate: 0.001,
 		Path:     "bloom.db",
@@ -32,7 +35,7 @@ func main() {
 
 	for i := 0; i < num-2; i++ {
 		bf.Add([]byte(fmt.Sprintf("%d", i)))
-		fmt.Println(i+1, bf.Contains([]byte(fmt.Sprintf("%d", i+1))))
+		// fmt.Println(i+1, bf.Contains([]byte(fmt.Sprintf("%d", i+1))))
 	}
 	fmt.Println(bf.Contains([]byte("foo")))
 	fmt.Println(bf.Contains([]byte("bar")))
@@ -54,12 +57,12 @@ func main3(num int) {
 
 	bf := sprout.NewBloom(opts)
 	defer bf.Close()
-	PrintMemUsage()
 
 }
 
 // Scalable bloom filter
 func main2(num int) {
+	num = num / 10
 	opts := &sprout.BloomOptions{
 		Err_rate: 0.001,
 		Path:     "bloom.db",
@@ -67,20 +70,20 @@ func main2(num int) {
 	}
 	bf := sprout.NewScalableBloom(opts)
 
-	bf.Clear()
 	// reset filter
-	num = num / 10
+	bf.Clear()
 
 	start := time.Now()
-	for i := 0; i < num*10; i++ {
+	for i := 1; i < num*10; i++ {
 		bf.Add([]byte(fmt.Sprintf("%d", i)))
-		fmt.Println(i+1, bf.Contains([]byte(fmt.Sprintf("%d", i+1))))
+		// fmt.Println(i+1, bf.Contains([]byte(fmt.Sprintf("%d", i+1))))
 	}
 
 	bf.Add([]byte("foo"))
 	fmt.Println(bf.Contains([]byte("foo")))
 	fmt.Println(bf.Contains([]byte("bar")))
-	fmt.Println("Started with", num, ", Added", num*10, "elements in", time.Since(start))
+	fmt.Printf("%+v\n", bf.Stats())
+	fmt.Println("Started with", num, ", Added", bf.Stats().Count, "elements in", time.Since(start))
 }
 
 func PrintMemUsage() {
@@ -96,6 +99,7 @@ func bToMb(b uint64) uint64 {
 	return b / 1024 / 1024
 }
 
+// Misc
 func main6() {
 	num := 2_000_000
 	db, err := bolt.Open("store.db", 0644, nil)

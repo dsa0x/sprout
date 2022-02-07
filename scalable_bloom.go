@@ -125,7 +125,6 @@ func (sbf *ScalableBloomFilter) contains(bf *BloomFilter, key []byte) bool {
 
 		if int(idx) >= bf.bit_width {
 			panic("Error finding key: Index out of bounds")
-			// unreachable
 		}
 		if bit := topFilter.mem[bf.pageOffset+int(idx)]; bit&mask == 0 {
 			return false
@@ -188,15 +187,11 @@ func (sbf *ScalableBloomFilter) Capacity() int {
 
 // filterSize returns the total filter size
 func (sbf *ScalableBloomFilter) filterSize() int {
-	sum := 0
-	for _, filter := range sbf.filters {
-		sum += filter.bit_width
-	}
-	return sum
+	return sbf.Top().bit_width
 }
 
-// getStore returns the store used by the scalable bloom filter
-func (sbf *ScalableBloomFilter) getStore() Store {
+// DB returns the store used by the scalable bloom filter
+func (sbf *ScalableBloomFilter) DB() Store {
 	return sbf.db
 }
 
@@ -209,6 +204,7 @@ func (sbf *ScalableBloomFilter) Count() int {
 	return sum
 }
 
+// Close closes the scalable bloom filter
 func (sbf *ScalableBloomFilter) Close() error {
 	bf := sbf.Top()
 	if err := bf.mem.Flush(); err != nil {
@@ -224,18 +220,22 @@ func (sbf *ScalableBloomFilter) Close() error {
 
 func (sbf *ScalableBloomFilter) prob() float64 {
 	sum := 1.0
-	for i, _ := range sbf.filters {
+	for i := range sbf.filters {
 		sum *= 1.0 - (sbf.err_rate * math.Pow(sbf.ratio, float64(i)))
 	}
 	return 1.0 - sum
 }
 
-func (sbf *ScalableBloomFilter) expCapacity() float64 {
-	sum := 0
-	for i, _ := range sbf.filters {
-		sum += int(math.Pow(float64(sbf.growth_rate), float64(i)))
+// Stats returns the stats of the bloom filter
+func (sbf *ScalableBloomFilter) Stats() BloomFilterStats {
+	return BloomFilterStats{
+		Capacity: sbf.Capacity(),
+		Count:    sbf.Count(),
+		Size:     sbf.filterSize(),
+		M:        sbf.Top().m,
+		K:        sbf.Top().k,
+		Prob:     sbf.prob(),
 	}
-	return float64(sum*sbf.m0) * math.Ln2
 }
 
 // Clear resets all bits in the bloom filter
