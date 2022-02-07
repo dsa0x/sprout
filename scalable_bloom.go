@@ -37,7 +37,7 @@ var (
 )
 
 // NewScalableBloom creates a new scalable bloom filter.
-// err_rate is the desired error rate.
+// err_rate is the desired false error rate. e.g. 0.001 implies 1 false positive in 1000 lookups
 // initial_capacity is the initial capacity of the bloom filter. When the number
 // of items exceed the initial capacity, a new filter is created.
 //

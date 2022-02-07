@@ -78,7 +78,7 @@ var DefaultBloomOptions = BloomOptions{
 }
 
 // NewBloom creates a new bloom filter.
-// err_rate is the desired false error rate. e.g. 0.001 implies 1 in 1000
+// err_rate is the desired false error rate. e.g. 0.001 implies 1 false positive in 1000 lookups
 //
 // capacity is the number of entries intended to be added to the filter
 //
