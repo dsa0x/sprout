@@ -45,6 +45,7 @@ type BloomFilter struct {
 	seeds []int64
 
 	path string
+	opts *BloomOptions
 }
 
 // BloomOptions is the options for creating a new bloom filter
@@ -71,7 +72,7 @@ type BloomOptions struct {
 var DefaultBloomOptions = BloomOptions{
 	Path:       "bloom.db",
 	Err_rate:   0.001,
-	Capacity:   100000,
+	Capacity:   10000,
 	GrowthRate: 2,
 	Database:   nil,
 }
@@ -89,8 +90,8 @@ func NewBloom(opts *BloomOptions) *BloomFilter {
 	if opts.Err_rate <= 0 || opts.Err_rate >= 1 {
 		panic("Error rate must be between 0 and 1")
 	}
-	if opts.Capacity <= 0 {
-		panic("Capacity must be greater than 0")
+	if opts.Capacity <= 10 {
+		panic("Capacity must be greater than 10")
 	}
 
 	// number of hash functions (k)
@@ -114,11 +115,6 @@ func NewBloom(opts *BloomOptions) *BloomFilter {
 		opts.Path = "/tmp/bloom.db"
 	}
 
-	f, err := os.OpenFile(opts.Path, os.O_RDWR|os.O_CREATE, 0644)
-	if err != nil {
-		log.Fatalf("error opening file: %v", err)
-	}
-
 	var b byte
 	byteSize := int(unsafe.Sizeof(&b))
 
@@ -127,23 +123,12 @@ func NewBloom(opts *BloomOptions) *BloomFilter {
 	bit_width += byteSize // add extra 1 byte to ensure we have a full byte at the end
 
 	pageOffset := opts.dataSize
-	opts.dataSize += bit_width
+	opts.dataSize += bit_width // will be the offset of the next filter
 
-	if err := f.Truncate(int64(opts.dataSize)); err != nil {
-		log.Fatalf("Error truncating file: %s", err)
-	}
-
-	mem, err := mmap.MapRegion(f, opts.dataSize, mmap.RDWR, 0, 0)
-	if err != nil {
-		log.Fatalf("Mmap error: %v", err)
-	}
-
-	return &BloomFilter{
+	bf := &BloomFilter{
 		err_rate:   opts.Err_rate,
 		capacity:   opts.Capacity,
 		bit_width:  bit_width,
-		memFile:    f,
-		mem:        mem,
 		m:          bits_per_slice,
 		seeds:      seeds,
 		db:         opts.Database,
@@ -152,7 +137,15 @@ func NewBloom(opts *BloomOptions) *BloomFilter {
 		path:       opts.Path,
 		k:          numHashFn,
 		pageOffset: pageOffset,
+		opts:       opts,
 	}
+
+	err := bf.mmap()
+	if err != nil {
+		log.Fatalf("Mmap error: %v", err)
+	}
+
+	return bf
 }
 
 // Add adds the key to the bloom filter
@@ -338,13 +331,7 @@ func (bf *BloomFilter) Close() error {
 		_ = bf.memFile.Close()
 		return err
 	}
-
-	if err := bf.mem.Unmap(); err != nil {
-		_ = bf.memFile.Close()
-		return err
-	}
-
-	return bf.memFile.Close()
+	return bf.unmap()
 }
 
 // Count returns the number of items added to the bloom filter
@@ -390,6 +377,26 @@ func (bf *BloomFilter) Stats() BloomFilterStats {
 		K:        bf.k,
 		Prob:     bf.err_rate,
 	}
+}
+
+// mmap opens a the filter file and maps it into memory
+func (bf *BloomFilter) mmap() error {
+	var err error
+	bf.memFile, err = os.OpenFile(bf.path, os.O_RDWR|os.O_CREATE, 0666)
+	if err != nil {
+		return fmt.Errorf("Unable to open bloom filter file: %s", err)
+	}
+
+	if err := bf.memFile.Truncate(int64(bf.opts.dataSize)); err != nil {
+		log.Fatalf("Error truncating file: %s", err)
+	}
+
+	bf.mem, err = mmap.MapRegion(bf.memFile, bf.opts.dataSize, mmap.RDWR, 0, 0)
+	if err != nil {
+		return fmt.Errorf("Unable to mmap bloom filter file: %s", err)
+	}
+
+	return nil
 }
 
 // divmod returns the quotient and remainder of a/b
