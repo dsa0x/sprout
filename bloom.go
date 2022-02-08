@@ -10,6 +10,7 @@ import (
 
 	"github.com/dsa0x/sprout/pkg/murmur"
 	"github.com/edsrzf/mmap-go"
+	"github.com/juju/fslock"
 )
 
 type BloomFilter struct {
@@ -33,6 +34,7 @@ type BloomFilter struct {
 	mem        mmap.MMap
 	pageOffset int
 	lock       sync.Mutex
+	flock      *fslock.Lock
 	byteSize   int
 
 	// m is the number bits per slice(hashFn)
@@ -140,7 +142,17 @@ func NewBloom(opts *BloomOptions) *BloomFilter {
 		opts:       opts,
 	}
 
-	err := bf.mmap()
+	// initialize advisory lock
+	bf.flock = fslock.New(bf.path)
+
+	// open the file
+	err := bf.openFile()
+	if err != nil {
+		log.Fatalf("Error opening file: %v", err)
+	}
+
+	// open mmap the file
+	err = bf.mmap()
 	if err != nil {
 		log.Fatalf("Mmap error: %v", err)
 	}
@@ -251,21 +263,6 @@ func (bf *BloomFilter) hasStore() bool {
 	return bf.db != nil && bf.db.isReady()
 }
 
-func (bf *BloomFilter) unmap() error {
-	var err error
-	if bf.mem != nil {
-		err = bf.mem.Unmap()
-		if err != nil {
-			_ = bf.memFile.Close()
-			return err
-		}
-	}
-	if bf.memFile != nil {
-		return bf.memFile.Close()
-	}
-	return nil
-}
-
 // getBitIndex returns the index and mask for the bit. (unused)
 //
 // The first half of the bits are set at the beginning of the byte,
@@ -325,13 +322,27 @@ func (bf *BloomFilter) Capacity() int {
 	return bf.capacity
 }
 
-// Close closes the file handle to the filter and the persistent store (if any)
+// Close flushes the file to disk and closes the file handle to the filter
 func (bf *BloomFilter) Close() error {
 	if err := bf.mem.Flush(); err != nil {
 		_ = bf.memFile.Close()
 		return err
 	}
-	return bf.unmap()
+	if err := bf.unmap(); err != nil {
+		_ = bf.memFile.Close()
+		return err
+	}
+	if bf.flock != nil {
+		err := bf.flock.Unlock()
+		if err != nil {
+			return err
+		}
+	}
+
+	if bf.memFile != nil {
+		return bf.memFile.Close()
+	}
+	return nil
 }
 
 // Count returns the number of items added to the bloom filter
@@ -351,9 +362,14 @@ func (bf *BloomFilter) DB() interface{} {
 
 // Clear resets all bits in the bloom filter
 func (bf *BloomFilter) Clear() {
-	bf.lock.Lock()
-	defer bf.lock.Unlock()
-	bf.mem = make([]byte, bf.bit_width)
+	mem := make([]byte, bf.bit_width)
+	copy(bf.mem, mem)
+	err := bf.mem.Flush()
+	if err != nil {
+		fmt.Printf("Error flushing filter to disk: %s\n", err)
+		os.Exit(1)
+	}
+	bf.count = 0
 }
 
 type BloomFilterStats struct {
@@ -379,13 +395,21 @@ func (bf *BloomFilter) Stats() BloomFilterStats {
 	}
 }
 
-// mmap opens a the filter file and maps it into memory
-func (bf *BloomFilter) mmap() error {
+func (bf *BloomFilter) unmap() error {
 	var err error
-	bf.memFile, err = os.OpenFile(bf.path, os.O_RDWR|os.O_CREATE, 0666)
-	if err != nil {
-		return fmt.Errorf("Unable to open bloom filter file: %s", err)
+	if bf.mem != nil {
+		err = bf.mem.Unmap()
+		if err != nil {
+			return err
+		}
 	}
+	return nil
+}
+
+// mmap opens the filter file and maps it into memory
+func (bf *BloomFilter) mmap() error {
+
+	var err error
 
 	if err := bf.memFile.Truncate(int64(bf.opts.dataSize)); err != nil {
 		log.Fatalf("Error truncating file: %s", err)
@@ -393,7 +417,25 @@ func (bf *BloomFilter) mmap() error {
 
 	bf.mem, err = mmap.MapRegion(bf.memFile, bf.opts.dataSize, mmap.RDWR, 0, 0)
 	if err != nil {
-		return fmt.Errorf("Unable to mmap bloom filter file: %s", err)
+		return fmt.Errorf("unable to mmap bloom filter file: %s", err)
+	}
+
+	return nil
+}
+
+// openFile opens the filter file and locks it
+func (bf *BloomFilter) openFile() error {
+	var err error
+	bf.memFile, err = os.OpenFile(bf.path, os.O_RDWR|os.O_CREATE, 0666)
+	if err != nil {
+		return fmt.Errorf("unable to open bloom filter file: %s", err)
+	}
+
+	if err := bf.flock.TryLock(); err != nil {
+		if err == fslock.ErrLocked {
+			return fmt.Errorf("file is locked by another process")
+		}
+		return fmt.Errorf("unable to lock bloom filter file: %s", err)
 	}
 
 	return nil

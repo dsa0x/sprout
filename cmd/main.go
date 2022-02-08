@@ -12,9 +12,12 @@ import (
 )
 
 func main() {
-	num := 20_000_00
-	// main1(num)
-	main2(num)
+
+	num := 20_000000
+	main1(num)
+	// main2(num)
+
+	// main2(num)
 }
 
 // Normal bloom filter
@@ -38,7 +41,7 @@ func main1(num int) {
 		// fmt.Println(i+1, bf.Contains([]byte(fmt.Sprintf("%d", i+1))))
 	}
 	fmt.Println(bf.Contains([]byte("foo")))
-	fmt.Println(bf.Contains([]byte("bar")))
+	fmt.Println(bf.Contains([]byte("f00")))
 	fmt.Printf("%+v\n", bf.Stats())
 	fmt.Printf("Added %d elements in %v\n", bf.Capacity(), time.Since(start))
 }

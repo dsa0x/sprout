@@ -4,6 +4,7 @@ import (
 	"encoding/binary"
 	"fmt"
 	"os"
+	"os/exec"
 	"testing"
 
 	"github.com/dgraph-io/badger/v3"
@@ -52,7 +53,7 @@ func TestBloomFilter_Add(t *testing.T) {
 		opts := &BloomOptions{
 			Err_rate: 0.01,
 			Capacity: 110000,
-			Path:     "./test.db",
+			Path:     "./test1.db",
 		}
 		bf := NewBloom(opts)
 
@@ -84,7 +85,7 @@ func TestBloomFilter_Add(t *testing.T) {
 		opts := &BloomOptions{
 			Err_rate: 0.01,
 			Capacity: 1000,
-			Path:     "./test.db",
+			Path:     "./test2.db",
 		}
 		bf := NewBloom(opts)
 
@@ -112,7 +113,7 @@ func TestBloomFilter_Add(t *testing.T) {
 		opts := &BloomOptions{
 			Err_rate: 0.1,
 			Capacity: 100,
-			Path:     "./test.db",
+			Path:     "./test3.db",
 		}
 		bf := NewBloom(opts)
 
@@ -134,12 +135,15 @@ func TestBloomFilter_Merge(t *testing.T) {
 		Path:     "./test.db",
 	}
 	bf := NewBloom(opts)
-	bf2 := NewBloom(opts)
+	opts2 := *opts
+	opts2.Path = "./test2.db"
+	bf2 := NewBloom(&opts2)
 
 	defer func() {
 		bf.Close()
 		bf2.Close()
 		os.Remove(opts.Path)
+		os.Remove(opts2.Path)
 	}()
 
 	t.Run("merge success", func(t *testing.T) {
@@ -153,11 +157,12 @@ func TestBloomFilter_Merge(t *testing.T) {
 		opts := &BloomOptions{
 			Err_rate: 0.01,
 			Capacity: 10000,
-			Path:     "./test.db",
+			Path:     "./test3.db",
 		}
 		bf2 := NewBloom(opts)
 		bf.Merge(bf2)
 		defer func() {
+			bf.Close()
 			bf2.Close()
 			os.Remove(opts.Path)
 		}()
@@ -170,8 +175,15 @@ func TestBloomFilter_Merge(t *testing.T) {
 
 	t.Run("object added to the single filters should be found in the resulting merge", func(t *testing.T) {
 		key := []byte("foo")
+		opts := &BloomOptions{
+			Err_rate: 0.01,
+			Capacity: 1000,
+			Path:     "./test4.db",
+		}
 		bf := NewBloom(opts)
-		bf2 := NewBloom(opts)
+		opts2 := *opts
+		opts2.Path = "./test5.db"
+		bf2 := NewBloom(&opts2)
 		bf2.Add(key)
 		err := bf.Merge(bf2)
 		if err != nil {
@@ -180,6 +192,12 @@ func TestBloomFilter_Merge(t *testing.T) {
 		if !bf.Contains(key) {
 			t.Errorf("Expected key %s to be found in the merged filter", string(key))
 		}
+		defer func() {
+			bf.Close()
+			bf2.Close()
+			os.Remove(opts.Path)
+			os.Remove(opts2.Path)
+		}()
 	})
 
 }
@@ -308,4 +326,82 @@ func assertPanic(t *testing.T, fn func()) {
 	}()
 	fn()
 	t.Errorf("The code did not panic")
+}
+
+func TestBloomFilter_Clear(t *testing.T) {
+	store, cleanupFunc := DBSetupTest(t)
+	defer cleanupFunc()
+	opts := &BloomOptions{
+		Err_rate: 0.01,
+		Capacity: 1000,
+		Database: store,
+		Path:     "./test.db",
+	}
+	bf := NewBloom(opts)
+
+	defer func() {
+		bf.Close()
+		os.Remove(opts.Path)
+	}()
+
+	for i := 0; i < opts.Capacity/2; i++ {
+		bf.Add([]byte(fmt.Sprintf("foo%d", i)))
+	}
+
+	keys := []string{"foo", "baz", "bar"}
+	for _, key := range keys {
+		bf.Add([]byte(key))
+	}
+
+	t.Run("should clear the bloom filter", func(t *testing.T) {
+		bf.Clear()
+		for _, key := range keys {
+			if bf.Contains([]byte(key)) {
+				t.Errorf("Expected key to not be found in bloom filter after clear")
+			}
+		}
+	})
+
+	for i := 0; i < opts.Capacity/2; i++ {
+		bf.Add([]byte(fmt.Sprintf("foo%d", i)))
+	}
+
+	for _, key := range keys {
+		bf.Add([]byte(key))
+		t.Run("Should find the newly added keys", func(t *testing.T) {
+			if !bf.Contains([]byte(key)) {
+				t.Errorf("Expected key to be found in bloom filter after clear")
+			}
+		})
+	}
+}
+func TestBloomFilter_FileLock(t *testing.T) {
+	t.Run("should clear the bloom filter", func(t *testing.T) {
+		store, cleanupFunc := DBSetupTest(t)
+		defer cleanupFunc()
+		if os.Getenv("SPROUT_LOCK") == "1" {
+			opts := &BloomOptions{
+				Err_rate: 0.01,
+				Capacity: 1000,
+				Database: store,
+				Path:     "./test.db",
+			}
+			bf := NewBloom(opts)
+			defer func() {
+				bf.Close()
+				os.Remove(opts.Path)
+			}()
+			NewBloom(opts)
+			return
+		}
+
+		cmd := exec.Command(os.Args[0], "-test.run=TestBloomFilter_FileLock")
+		cmd.Env = append(os.Environ(), "SPROUT_LOCK=1")
+		err := cmd.Run()
+		if e, ok := err.(*exec.ExitError); ok && !e.Success() {
+			return
+		}
+		t.Fatalf("expected file lock error, got none")
+	})
+
 }

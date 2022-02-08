@@ -152,7 +152,7 @@ func (sbf *ScalableBloomFilter) Top() *BloomFilter {
 func (sbf *ScalableBloomFilter) grow() {
 
 	// unmap the old top filter
-	err := sbf.Top().unmap()
+	err := sbf.Top().Close()
 	if err != nil {
 		log.Panicf("Error unmapping top filter before grow: %v", err)
 	}
@@ -206,16 +206,7 @@ func (sbf *ScalableBloomFilter) Count() int {
 
 // Close closes the scalable bloom filter
 func (sbf *ScalableBloomFilter) Close() error {
-	bf := sbf.Top()
-	if err := bf.mem.Flush(); err != nil {
-		_ = bf.memFile.Close()
-		return err
-	}
-	if err := bf.mem.Unmap(); err != nil {
-		_ = bf.memFile.Close()
-		return err
-	}
-	return bf.memFile.Close()
+	return sbf.Top().Close()
 }
 
 func (sbf *ScalableBloomFilter) prob() float64 {

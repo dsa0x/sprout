@@ -13,6 +13,7 @@ func TestScalableBloom(t *testing.T) {
 		Path:     "./test.db",
 	}
 	sbf := NewScalableBloom(opts)
+	defer sbf.Close()
 
 	t.Run("success", func(t *testing.T) {
 		key := []byte("foo")
@@ -30,6 +31,7 @@ func TestScalableBloomFilter_AddToDB(t *testing.T) {
 		Path:     "./test.db",
 	}
 	sbf := NewScalableBloom(opts)
+	defer sbf.Close()
 
 	t.Run("success", func(t *testing.T) {
 		key, val := []byte("foo"), []byte("var")
@@ -59,6 +61,7 @@ func TestScalableBloomFilter_GrowFilter(t *testing.T) {
 		Path:     "./test.db",
 	}
 	sbf := NewScalableBloom(opts)
+	defer sbf.Close()
 
 	t.Run("should grow filter when capacity is full", func(t *testing.T) {
 		key, val := []byte("foo"), []byte("var")
@@ -95,6 +98,8 @@ func Test_CompareBFnSBF(t *testing.T) {
 		Path:     "./test2.db",
 	}
 	bf := NewBloom(opts2)
+	defer sbf.Close()
+	defer bf.Close()
 
 	t.Run("bf and a sbf that hasnt been scaled should have the same width", func(t *testing.T) {
 
