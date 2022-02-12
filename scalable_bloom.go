@@ -91,6 +91,7 @@ func (sbf *ScalableBloomFilter) add(key []byte) {
 	for i := 0; i < len(indices); i++ {
 		idx, mask := bf.getBitIndexN(indices[i])
 		if int(idx) >= bf.bit_width {
+			// this should not happen
 			panic("Error adding key: Index out of bounds")
 		}
 		bf.mem[bf.pageOffset+int(idx)] |= mask
@@ -124,7 +125,7 @@ func (sbf *ScalableBloomFilter) contains(bf *BloomFilter, key []byte) bool {
 		idx, mask := bf.getBitIndexN(indices[i])
 
 		if int(idx) >= bf.bit_width {
-			panic("Error finding key: Index out of bounds")
+			return false
 		}
 		if bit := topFilter.mem[bf.pageOffset+int(idx)]; bit&mask == 0 {
 			return false

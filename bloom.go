@@ -161,21 +161,21 @@ func NewBloom(opts *BloomOptions) *BloomFilter {
 }
 
 // Add adds the key to the bloom filter
-func (bf *BloomFilter) Add(key []byte) {
+func (bf *BloomFilter) Add(key []byte) error {
 	bf.lock.Lock()
 	defer bf.lock.Unlock()
 
 	indices := bf.candidates(string(key))
 
 	if bf.count >= bf.capacity {
-		log.Panicf("BloomFilter has reached full capacity %d", bf.capacity)
+		return fmt.Errorf("BloomFilter has reached full capacity %d", bf.capacity)
 	}
 
 	for i := 0; i < len(indices); i++ {
 		idx, mask := bf.getBitIndexN(indices[i])
 
 		if int(idx) >= len(bf.mem) {
-			panic("Error finding key: Index out of bounds")
+			return fmt.Errorf("Error finding key: Index out of bounds")
 		}
 
 		// set the bit at mask position of the byte at idx
@@ -183,13 +183,13 @@ func (bf *BloomFilter) Add(key []byte) {
 		bf.mem[idx] |= mask
 	}
 	bf.count++
-
+	return nil
 }
 
 // Put adds the key to the bloom filter, and also stores it in the persistent store
 func (bf *BloomFilter) Put(key, val []byte) error {
 	if !bf.hasStore() {
-		fmt.Errorf("BloomFilter does not have a store, use Add() to add keys")
+		return fmt.Errorf("BloomFilter does not have a store, use Add() to add keys")
 	}
 
 	bf.Add(key)
@@ -204,7 +204,7 @@ func (bf *BloomFilter) Contains(key []byte) bool {
 		idx, mask := bf.getBitIndexN(indices[i])
 
 		if int(idx) >= len(bf.mem) {
-			panic("Error finding key: Index out of bounds")
+			return false
 		}
 		bit := bf.mem[idx]
 
