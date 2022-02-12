@@ -74,13 +74,6 @@ func TestBloomFilter_Add(t *testing.T) {
 	})
 
 	t.Run("add should panic when number of entries exceed the capacity", func(t *testing.T) {
-		defer func() {
-			if r := recover(); r == nil {
-				fmt.Println("recovered from panic")
-				return
-			}
-		}()
-
 		count := 1000
 		opts := &BloomOptions{
 			Err_rate: 0.01,
@@ -98,8 +91,10 @@ func TestBloomFilter_Add(t *testing.T) {
 			binary.LittleEndian.PutUint32(by[:], uint32(i))
 			bf.Add(by[:])
 		}
-		bf.Add([]byte("test"))
-		t.Errorf("Expected function to panic when number of entries exceed the capacity")
+		err := bf.Add([]byte("test"))
+		if err == nil {
+			t.Errorf("Expected error, got nil")
+		}
 	})
 
 	t.Run("get should panic when there is no persistent store", func(t *testing.T) {
