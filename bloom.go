@@ -148,13 +148,13 @@ func NewBloom(opts *BloomOptions) *BloomFilter {
 	// open the file
 	err := bf.openFile()
 	if err != nil {
-		log.Fatalf("Error opening file: %v", err)
+		log.Panicf("Error opening file: %v", err)
 	}
 
 	// open mmap the file
 	err = bf.mmap()
 	if err != nil {
-		log.Fatalf("Mmap error: %v", err)
+		log.Panicf("Mmap error: %v", err)
 	}
 
 	return bf
@@ -412,7 +412,8 @@ func (bf *BloomFilter) mmap() error {
 	var err error
 
 	if err := bf.memFile.Truncate(int64(bf.opts.dataSize)); err != nil {
-		log.Fatalf("Error truncating file: %s", err)
+		log.Printf("Error truncating file: %s", err)
+		return err
 	}
 
 	bf.mem, err = mmap.MapRegion(bf.memFile, bf.opts.dataSize, mmap.RDWR, 0, 0)

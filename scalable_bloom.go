@@ -236,7 +236,7 @@ func (sbf *ScalableBloomFilter) Clear() {
 	defer sbf.lock.Unlock()
 	err := sbf.Top().Close()
 	if err != nil {
-		log.Fatalf("Error closing top filter before clear: %v", err)
+		log.Panicf("Error closing top filter before clear: %v", err)
 	}
 	sbf.filters = []*BloomFilter{NewBloom(sbf.opts)}
 
